@@ -41,6 +41,115 @@ interface SubmissionRow {
   id: string;
 }
 
+async function processCrawlPipeline(
+  normalizedUrl: string,
+  support_email: string,
+  userId: string,
+  jobId: string
+): Promise<void> {
+  try {
+    console.log(`[PIPELINE] Starting crawl for ${normalizedUrl}`);
+    const crawlResult = await crawlCompanySite(normalizedUrl);
+    console.log(`[PIPELINE] Crawl result: success=${crawlResult.success}, pages=${crawlResult.data.length}`);
+
+    if (!crawlResult.success || crawlResult.data.length === 0) {
+      console.error(`[PIPELINE] Crawl failed: ${crawlResult.error}`);
+      await query(
+        `UPDATE jobs SET status = 'failed', error = $1, completed_at = NOW() WHERE id = $2`,
+        [crawlResult.error || 'No pages crawled', jobId]
+      );
+      return;
+    }
+
+    console.log(`[PIPELINE] Building markdown from ${crawlResult.data.length} pages`);
+    const markdown = buildCrawlMarkdown(crawlResult.data);
+    const meta = extractMetaFromPages(crawlResult.data);
+
+    console.log('[PIPELINE] Extracting company profile with AI...');
+    const profile = await extractCompanyProfile(markdown);
+    console.log(`[PIPELINE] Extracted: ${profile.company_name}`);
+
+    const company = await queryOne<CompanyRow>(
+      `INSERT INTO companies (
+         user_id, name, website, support_email, tagline,
+         description_short, description_long, logo_url,
+         categories, social_links, pricing_model, founded_year, raw_crawl_data
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       RETURNING *`,
+      [
+        userId,
+        profile.company_name,
+        normalizedUrl,
+        support_email,
+        profile.tagline,
+        profile.short_description,
+        profile.long_description,
+        profile.logo_url || meta.ogImage || '',
+        JSON.stringify(profile.categories),
+        JSON.stringify(profile.social_links),
+        profile.pricing_model,
+        profile.founded_year,
+        markdown,
+      ]
+    );
+
+    if (!company) {
+      throw new Error('Failed to insert company');
+    }
+    console.log(`[PIPELINE] Company created: ${company.id}`);
+
+    console.log('[PIPELINE] Generating screenshots...');
+    try {
+      await generateScreenshots(company.id, normalizedUrl);
+      console.log('[PIPELINE] Screenshots generated');
+    } catch (ssErr) {
+      console.error('[PIPELINE] Screenshot generation failed (continuing):', ssErr);
+    }
+
+    const directories = await query<DirectoryRow>(
+      'SELECT id, name, submission_type, api_endpoint, submit_url FROM directories WHERE active = true'
+    );
+    console.log(`[PIPELINE] Found ${directories.length} active directories`);
+
+    let queued = 0;
+    for (const dir of directories) {
+      const submission = await queryOne<SubmissionRow>(
+        `INSERT INTO submissions (company_id, directory_id, status)
+         VALUES ($1, $2, 'queued')
+         ON CONFLICT (company_id, directory_id) DO NOTHING
+         RETURNING id`,
+        [company.id, dir.id]
+      );
+
+      if (submission) {
+        await enqueueSubmission(dir.submission_type, {
+          submissionId: submission.id,
+          companyId: company.id,
+          directoryId: dir.id,
+          apiEndpoint: dir.api_endpoint || undefined,
+          submitUrl: dir.submit_url,
+        });
+        queued++;
+      }
+    }
+
+    console.log(`[PIPELINE] Queued ${queued} submissions`);
+
+    await query(
+      `UPDATE jobs SET status = 'completed', result = $1, completed_at = NOW() WHERE id = $2`,
+      [JSON.stringify({ company_id: company.id, directories_queued: queued }), jobId]
+    );
+    console.log(`[PIPELINE] Job ${jobId} completed successfully`);
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`[PIPELINE] Error: ${errorMsg}`);
+    await query(
+      `UPDATE jobs SET status = 'failed', error = $1, completed_at = NOW() WHERE id = $2`,
+      [errorMsg, jobId]
+    );
+  }
+}
+
 export async function companyRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preValidation', app.authenticate);
 
@@ -59,91 +168,17 @@ export async function companyRoutes(app: FastifyInstance): Promise<void> {
       [JSON.stringify({ website: normalizedUrl, support_email, user_id: userId })]
     );
 
-    reply.status(202).send({
-      message: 'Company crawl started',
-      job_id: jobRow?.id,
+    const jobId = jobRow?.id;
+
+    // Run pipeline in background - do NOT await, just fire and forget
+    processCrawlPipeline(normalizedUrl, support_email, userId, jobId!).catch((err) => {
+      console.error('[PIPELINE] Unhandled error:', err);
     });
 
-    try {
-      const crawlResult = await crawlCompanySite(normalizedUrl);
-
-      if (!crawlResult.success || crawlResult.data.length === 0) {
-        await query(
-          `UPDATE jobs SET status = 'failed', error = $1, completed_at = NOW() WHERE id = $2`,
-          [crawlResult.error || 'No pages crawled', jobRow?.id]
-        );
-        return;
-      }
-
-      const markdown = buildCrawlMarkdown(crawlResult.data);
-      const meta = extractMetaFromPages(crawlResult.data);
-      const profile = await extractCompanyProfile(markdown);
-
-      const company = await queryOne<CompanyRow>(
-        `INSERT INTO companies (
-           user_id, name, website, support_email, tagline,
-           description_short, description_long, logo_url,
-           categories, social_links, pricing_model, founded_year, raw_crawl_data
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-         RETURNING *`,
-        [
-          userId,
-          profile.company_name,
-          normalizedUrl,
-          support_email,
-          profile.tagline,
-          profile.short_description,
-          profile.long_description,
-          profile.logo_url || meta.ogImage || '',
-          JSON.stringify(profile.categories),
-          JSON.stringify(profile.social_links),
-          profile.pricing_model,
-          profile.founded_year,
-          markdown,
-        ]
-      );
-
-      if (!company) {
-        throw new Error('Failed to insert company');
-      }
-
-      await generateScreenshots(company.id, normalizedUrl);
-
-      const directories = await query<DirectoryRow>(
-        'SELECT id, name, submission_type, api_endpoint, submit_url FROM directories WHERE active = true'
-      );
-
-      for (const dir of directories) {
-        const submission = await queryOne<SubmissionRow>(
-          `INSERT INTO submissions (company_id, directory_id, status)
-           VALUES ($1, $2, 'queued')
-           ON CONFLICT (company_id, directory_id) DO NOTHING
-           RETURNING id`,
-          [company.id, dir.id]
-        );
-
-        if (submission) {
-          await enqueueSubmission(dir.submission_type, {
-            submissionId: submission.id,
-            companyId: company.id,
-            directoryId: dir.id,
-            apiEndpoint: dir.api_endpoint || undefined,
-            submitUrl: dir.submit_url,
-          });
-        }
-      }
-
-      await query(
-        `UPDATE jobs SET status = 'completed', result = $1, completed_at = NOW() WHERE id = $2`,
-        [JSON.stringify({ company_id: company.id, directories_queued: directories.length }), jobRow?.id]
-      );
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      await query(
-        `UPDATE jobs SET status = 'failed', error = $1, completed_at = NOW() WHERE id = $2`,
-        [errorMsg, jobRow?.id]
-      );
-    }
+    return reply.status(202).send({
+      message: 'Company crawl started',
+      job_id: jobId,
+    });
   });
 
   app.get('/api/companies', async (request, reply) => {
