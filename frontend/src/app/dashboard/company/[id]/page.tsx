@@ -163,7 +163,7 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
           <div className="grid grid-cols-3 gap-4">
             {screenshots.map((s) => (
               <div key={s.type} className="rounded-lg border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
-                <img src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${s.file_url}`} alt={s.type}
+                <img src={s.file_url.startsWith('http') ? s.file_url : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${s.file_url}`} alt={s.type}
                   className="w-full h-48 object-cover" />
                 <div className="p-2 text-xs text-center capitalize" style={{ color: 'var(--muted-foreground)' }}>{s.type}</div>
               </div>
