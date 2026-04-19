@@ -2,6 +2,7 @@ services:
   - type: web
     name: listeverywhere-frontend
     runtime: node
+    plan: starter
     buildCommand: cd frontend && npm install --include=dev && npm run build
     startCommand: cd frontend && npm start
     envVars:
@@ -13,6 +14,7 @@ services:
   - type: web
     name: listeverywhere-api
     runtime: docker
+    plan: standard
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     envVars:
@@ -45,6 +47,7 @@ services:
   - type: worker
     name: listeverywhere-workers
     runtime: docker
+    plan: standard
     dockerfilePath: ./backend/Dockerfile.workers
     dockerContext: ./backend
     envVars:
@@ -71,6 +74,7 @@ services:
   - type: cron
     name: listeverywhere-cron
     runtime: docker
+    plan: starter
     dockerfilePath: ./backend/Dockerfile.cron
     dockerContext: ./backend
     schedule: "0 3 * * 1"
