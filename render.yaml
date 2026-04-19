@@ -13,10 +13,10 @@ services:
 
   - type: web
     name: listeverywhere-api
-    runtime: docker
+    runtime: node
     plan: standard
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
+    buildCommand: cd backend && npm install --include=dev && npm run build
+    startCommand: cd backend && npm start
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -73,10 +73,9 @@ services:
 
   - type: cron
     name: listeverywhere-cron
-    runtime: docker
+    runtime: node
     plan: starter
-    dockerfilePath: ./backend/Dockerfile.cron
-    dockerContext: ./backend
+    buildCommand: cd backend && npm install --include=dev && npm run build
     schedule: "0 3 * * 1"
     envVars:
       - key: DATABASE_URL
