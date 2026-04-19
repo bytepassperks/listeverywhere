@@ -95,11 +95,14 @@ services:
       - key: NODE_ENV
         value: production
 
+  - type: redis
+    name: listeverywhere-redis
+    plan: free
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
+
 databases:
   - name: listeverywhere-db
     plan: free
     databaseName: listeverywhere
     user: listeverywhere
-
-  - name: listeverywhere-redis
-    plan: free
