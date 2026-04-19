@@ -71,8 +71,16 @@ async function pollCrawlStatus(crawlId: string, maxWaitMs: number = 300000): Pro
     }
 
     const status = await response.json() as CrawlStatusResponse;
+    console.log(`[FIRECRAWL] Poll status: ${status.status}, total: ${status.total}, completed: ${status.completed}, data length: ${status.data?.length || 0}`);
 
     if (status.status === 'completed' && status.data) {
+      if (status.data.length > 0) {
+        const sample: unknown = status.data[0];
+        const sampleObj = sample as Record<string, unknown>;
+        console.log(`[FIRECRAWL] Sample page keys: ${Object.keys(sampleObj).join(', ')}`);
+        console.log(`[FIRECRAWL] Sample page url: ${sampleObj.url || sampleObj.sourceURL || 'N/A'}`);
+        console.log(`[FIRECRAWL] Sample page has markdown: ${!!sampleObj.markdown}`);
+      }
       return status.data;
     }
 
