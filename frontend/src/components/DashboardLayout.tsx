@@ -9,6 +9,7 @@ const navItems = [
   { href: '/dashboard/submissions', label: 'Submissions', icon: '📤' },
   { href: '/dashboard/directories', label: 'Directories', icon: '📂' },
   { href: '/dashboard/bulk', label: 'Bulk Upload', icon: '📦' },
+  { href: '/dashboard/demo-video', label: 'Demo Video', icon: '🎬' },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

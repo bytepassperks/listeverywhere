@@ -9,6 +9,7 @@ import { submissionRoutes } from './routes/submissions';
 import { directoryRoutes } from './routes/directories';
 import { bulkUploadRoutes } from './routes/bulkUpload';
 import { jobRoutes } from './routes/jobs';
+import { demoVideoRoutes } from './routes/demoVideo';
 import path from 'path';
 import fs from 'fs';
 import { runMigrations } from './db/migrate';
@@ -77,6 +78,23 @@ async function buildApp() {
   await app.register(directoryRoutes);
   await app.register(bulkUploadRoutes);
   await app.register(jobRoutes);
+  await app.register(demoVideoRoutes);
+
+  const videosDir = path.join(env.SCREENSHOTS_DIR, 'videos');
+  if (!fs.existsSync(videosDir)) {
+    fs.mkdirSync(videosDir, { recursive: true });
+  }
+
+  app.get('/videos/:filename', async (request, reply) => {
+    const { filename } = request.params as { filename: string };
+    const filePath = path.join(videosDir, filename);
+
+    if (!fs.existsSync(filePath)) {
+      return reply.status(404).send({ error: 'Video not found' });
+    }
+
+    return reply.type('video/mp4').send(fs.createReadStream(filePath));
+  });
 
   app.get('/api/health', async () => {
     return { status: 'ok', timestamp: new Date().toISOString() };
