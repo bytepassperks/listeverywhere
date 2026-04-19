@@ -31,7 +31,7 @@ export const ScreenshotsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) =
         { type: 'pricing', file_url: '' },
       ];
 
-  const hasRealScreenshots = screenshots.some(s => s.file_url && s.file_url.startsWith('http'));
+  const hasRealScreenshots = screenshots.some(s => s.file_url && (s.file_url.startsWith('http') || s.file_url.startsWith('/')));
 
   // Screenshot carousel: switch between screenshots over time
   const screenshotCycleDuration = 70; // frames per screenshot
@@ -48,7 +48,7 @@ export const ScreenshotsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) =
     { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
   );
 
-  const screenshotsWithUrls = screenshots.filter(s => s.file_url && s.file_url.startsWith('http'));
+  const screenshotsWithUrls = screenshots.filter(s => s.file_url && (s.file_url.startsWith('http') || s.file_url.startsWith('/')));
   const currentScreenshot = screenshotsWithUrls[currentScreenshotIndex];
 
   // Page label
