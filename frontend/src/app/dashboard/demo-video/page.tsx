@@ -256,13 +256,13 @@ function DemoVideoContent() {
                     {scene}
                   </div>
                   <div className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
-                    5s
+                    8s
                   </div>
                 </div>
               ))}
             </div>
             <p className="text-sm mt-4" style={{ color: 'var(--muted-foreground)' }}>
-              Total duration: 25 seconds • 1920x1080 • 30fps
+              Total duration: ~37 seconds • 1920x1080 • 30fps • Cinematic crossfade transitions
             </p>
           </div>
         </>
@@ -278,16 +278,16 @@ function DemoVideoContent() {
             Create Your Demo Video
           </h3>
           <p className="text-sm max-w-md mx-auto" style={{ color: 'var(--muted-foreground)' }}>
-            Select a company above and click &ldquo;Generate Preview&rdquo; to create a professional
-            3D animated demo video with floating effects, annotations, and submission statistics.
+            Select a company above and click &ldquo;Generate Preview&rdquo; to create a cinematic
+            demo video with 3D perspective, floating annotations, animated stats, and smooth transitions.
           </p>
           <div className="flex justify-center gap-6 mt-6">
             {[
-              { icon: '🎭', label: '3D Animations' },
-              { icon: '✨', label: 'Floating Effects' },
-              { icon: '📝', label: 'Auto Annotations' },
-              { icon: '📊', label: 'Live Stats' },
-              { icon: '📥', label: 'MP4 Download' },
+              { icon: '🎬', label: 'Cinematic Intro' },
+              { icon: '✨', label: '3D Perspective' },
+              { icon: '📝', label: 'Smart Annotations' },
+              { icon: '📊', label: 'Animated Stats' },
+              { icon: '📥', label: 'MP4 Export' },
             ].map((feat, i) => (
               <div key={i} className="text-center">
                 <div className="text-2xl mb-1">{feat.icon}</div>

@@ -17,4 +17,6 @@ export interface DemoVideoProps {
 export const VIDEO_WIDTH = 1920;
 export const VIDEO_HEIGHT = 1080;
 export const VIDEO_FPS = 30;
-export const SCENE_DURATION_FRAMES = 150; // 5 seconds per scene
+export const SCENE_DURATION_FRAMES = 240; // 8 seconds per scene
+export const TRANSITION_FRAMES = 20; // ~0.67s crossfade between scenes
+export const TOTAL_SCENES = 5;
