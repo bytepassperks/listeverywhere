@@ -212,13 +212,18 @@ export function extractMetaFromPages(pages: CrawlPage[]): {
   ogImage?: string;
 } {
   const homepage = pages.find(p => {
-    const path = new URL(p.url).pathname;
-    return path === '/' || path === '';
+    if (!p.url) return false;
+    try {
+      const path = new URL(p.url).pathname;
+      return path === '/' || path === '';
+    } catch {
+      return false;
+    }
   });
 
   return {
     title: homepage?.metadata?.title as string | undefined,
     description: homepage?.metadata?.description as string | undefined,
-    ogImage: homepage?.metadata?.ogImage as string | undefined,
+    ogImage: (homepage?.metadata?.ogImage || homepage?.metadata?.['og:image']) as string | undefined,
   };
 }
