@@ -13,6 +13,9 @@ interface CrawlPage {
     title?: string;
     description?: string;
     ogImage?: string;
+    sourceURL?: string;
+    url?: string;
+    'og:image'?: string;
     [key: string]: unknown;
   };
 }
@@ -22,7 +25,7 @@ interface CrawlStatusResponse {
   status: string;
   total: number;
   completed: number;
-  data?: CrawlPage[];
+  data?: Record<string, unknown>[];
 }
 
 async function startCrawl(url: string, limit: number = 10): Promise<string> {
@@ -74,14 +77,17 @@ async function pollCrawlStatus(crawlId: string, maxWaitMs: number = 300000): Pro
     console.log(`[FIRECRAWL] Poll status: ${status.status}, total: ${status.total}, completed: ${status.completed}, data length: ${status.data?.length || 0}`);
 
     if (status.status === 'completed' && status.data) {
-      if (status.data.length > 0) {
-        const sample: unknown = status.data[0];
-        const sampleObj = sample as Record<string, unknown>;
-        console.log(`[FIRECRAWL] Sample page keys: ${Object.keys(sampleObj).join(', ')}`);
-        console.log(`[FIRECRAWL] Sample page url: ${sampleObj.url || sampleObj.sourceURL || 'N/A'}`);
-        console.log(`[FIRECRAWL] Sample page has markdown: ${!!sampleObj.markdown}`);
-      }
-      return status.data;
+      const mappedPages: CrawlPage[] = status.data.map((page: Record<string, unknown>) => {
+        const meta = (page.metadata || {}) as Record<string, unknown>;
+        const pageUrl = (page.url as string) || (meta.sourceURL as string) || (meta.url as string) || (meta.ogUrl as string) || '';
+        return {
+          url: pageUrl,
+          markdown: (page.markdown as string) || '',
+          metadata: meta as CrawlPage['metadata'],
+        };
+      });
+      console.log(`[FIRECRAWL] Mapped ${mappedPages.length} pages, first URL: ${mappedPages[0]?.url || 'N/A'}`);
+      return mappedPages;
     }
 
     if (status.status === 'failed') {
