@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState, useEffect, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { api, Company, Screenshot } from '@/lib/api';
 import { DemoVideoPlayer } from '@/components/video/DemoVideoPlayer';
 import { DemoVideoProps } from '@/components/video/types';
 
-export default function DemoVideoPage() {
+function DemoVideoContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const companyParam = searchParams.get('company');
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
   const [videoData, setVideoData] = useState<DemoVideoProps | null>(null);
@@ -20,13 +22,15 @@ export default function DemoVideoPage() {
     api.getCompanies()
       .then((data) => {
         setCompanies(data.companies);
-        if (data.companies.length > 0) {
+        if (companyParam && data.companies.some((c: Company) => c.id === companyParam)) {
+          setSelectedCompanyId(companyParam);
+        } else if (data.companies.length > 0) {
           setSelectedCompanyId(data.companies[0].id);
         }
       })
       .catch(() => router.push('/login'))
       .finally(() => setLoading(false));
-  }, [router]);
+  }, [router, companyParam]);
 
   const generatePreview = useCallback(async () => {
     if (!selectedCompanyId) return;
@@ -258,7 +262,7 @@ export default function DemoVideoPage() {
               ))}
             </div>
             <p className="text-sm mt-4" style={{ color: 'var(--muted-foreground)' }}>
-              Total duration: 25 seconds • 1920×1080 • 30fps
+              Total duration: 25 seconds • 1920x1080 • 30fps
             </p>
           </div>
         </>
@@ -296,5 +300,19 @@ export default function DemoVideoPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function DemoVideoPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-64" style={{ color: 'var(--muted-foreground)' }}>
+          Loading...
+        </div>
+      }
+    >
+      <DemoVideoContent />
+    </Suspense>
   );
 }

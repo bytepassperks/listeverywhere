@@ -142,6 +142,21 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
         )}
       </div>
 
+      <div className="mb-6">
+        <button
+          onClick={() => router.push(`/dashboard/demo-video?company=${id}`)}
+          className="w-full p-4 rounded-xl border text-left flex items-center gap-4 hover:opacity-90 transition-opacity"
+          style={{ background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', borderColor: 'transparent' }}
+        >
+          <span className="text-3xl">🎬</span>
+          <div>
+            <div className="text-white font-semibold">Generate Demo Video</div>
+            <div className="text-white/70 text-sm">Create a professional 3D animated demo video with floating effects &amp; annotations</div>
+          </div>
+          <span className="ml-auto text-white text-xl">&rarr;</span>
+        </button>
+      </div>
+
       {screenshots.length > 0 && (
         <div className="mb-6">
           <h2 className="text-lg font-semibold mb-3" style={{ color: 'var(--foreground)' }}>Screenshots</h2>

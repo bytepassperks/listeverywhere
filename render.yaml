@@ -13,7 +13,7 @@ services:
   - type: web
     name: listeverywhere-api
     runtime: node
-    buildCommand: cd backend && npm install --include=dev && npx playwright install chromium --with-deps && npm run build
+    buildCommand: cd backend && npm install --include=dev && npx playwright install chromium --with-deps && apt-get update && apt-get install -y ffmpeg && npm run build
     startCommand: cd backend && npm start
     envVars:
       - key: DATABASE_URL
@@ -45,7 +45,7 @@ services:
   - type: worker
     name: listeverywhere-workers
     runtime: node
-    buildCommand: cd backend && npm install --include=dev && npx playwright install chromium --with-deps && npm run build
+    buildCommand: cd backend && npm install --include=dev && npx playwright install chromium --with-deps && apt-get update && apt-get install -y ffmpeg && npm run build
     startCommand: cd backend && npm run workers
     envVars:
       - key: DATABASE_URL
