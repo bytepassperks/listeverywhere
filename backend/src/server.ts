@@ -11,6 +11,7 @@ import { bulkUploadRoutes } from './routes/bulkUpload';
 import { jobRoutes } from './routes/jobs';
 import path from 'path';
 import fs from 'fs';
+import { runMigrations } from './db/migrate';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -84,6 +85,13 @@ async function buildApp() {
 }
 
 async function start() {
+  try {
+    await runMigrations();
+    console.log('Database migrations completed');
+  } catch (err) {
+    console.error('Migration error (continuing anyway):', err);
+  }
+
   const app = await buildApp();
 
   try {

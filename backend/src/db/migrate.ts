@@ -119,7 +119,7 @@ CREATE INDEX IF NOT EXISTS idx_jobs_job_type ON jobs(job_type);
 CREATE INDEX IF NOT EXISTS idx_screenshots_company_id ON screenshots(company_id);
 `;
 
-async function migrate() {
+export async function runMigrations() {
   console.log('Running database migrations...');
   try {
     await pool.query(migration);
@@ -127,9 +127,11 @@ async function migrate() {
   } catch (error) {
     console.error('Migration failed:', error);
     throw error;
-  } finally {
-    await pool.end();
   }
 }
 
-migrate().catch(() => process.exit(1));
+if (require.main === module) {
+  runMigrations()
+    .then(() => pool.end())
+    .catch(() => process.exit(1));
+}
