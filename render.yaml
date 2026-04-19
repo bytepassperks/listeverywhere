@@ -2,7 +2,7 @@ services:
   - type: web
     name: listeverywhere-frontend
     runtime: node
-    buildCommand: cd frontend && npm install && npm run build
+    buildCommand: cd frontend && npm install --include=dev && npm run build
     startCommand: cd frontend && npm start
     envVars:
       - key: NEXT_PUBLIC_API_URL
@@ -13,7 +13,7 @@ services:
   - type: web
     name: listeverywhere-api
     runtime: node
-    buildCommand: cd backend && npm install && npm run build
+    buildCommand: cd backend && npm install --include=dev && npm run build
     startCommand: cd backend && npm start
     envVars:
       - key: DATABASE_URL
@@ -45,7 +45,7 @@ services:
   - type: worker
     name: listeverywhere-workers
     runtime: node
-    buildCommand: cd backend && npm install
+    buildCommand: cd backend && npm install --include=dev
     startCommand: cd backend && npm run workers
     envVars:
       - key: DATABASE_URL
@@ -71,7 +71,7 @@ services:
   - type: cron
     name: listeverywhere-cron
     runtime: node
-    buildCommand: cd backend && npm install
+    buildCommand: cd backend && npm install --include=dev
     startCommand: cd backend && npm run cron
     schedule: "0 3 * * 1"
     envVars:
