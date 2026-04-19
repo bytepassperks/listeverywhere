@@ -45,9 +45,8 @@ services:
   - type: worker
     name: listeverywhere-workers
     runtime: docker
-    dockerfilePath: ./backend/Dockerfile
+    dockerfilePath: ./backend/Dockerfile.workers
     dockerContext: ./backend
-    startCommand: node dist/workers/index.js
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -72,9 +71,8 @@ services:
   - type: cron
     name: listeverywhere-cron
     runtime: docker
-    dockerfilePath: ./backend/Dockerfile
+    dockerfilePath: ./backend/Dockerfile.cron
     dockerContext: ./backend
-    startCommand: node dist/jobs/weeklyUpdater.js
     schedule: "0 3 * * 1"
     envVars:
       - key: DATABASE_URL
