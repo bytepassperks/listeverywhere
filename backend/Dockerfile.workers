@@ -1,12 +1,14 @@
-FROM mcr.microsoft.com/playwright:v1.52.0-noble
-
-RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+FROM node:22-slim
 
 WORKDIR /app
 
 COPY package*.json ./
 
 RUN npm install --include=dev
+
+RUN npx playwright install --with-deps chromium
+
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 
 COPY . .
 
