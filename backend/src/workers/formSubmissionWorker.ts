@@ -1,5 +1,4 @@
 import { Job } from 'bullmq';
-import { chromium, Browser, Page } from 'playwright';
 import { updateSubmissionStatus, incrementAttempt } from '../services/statusTracker';
 import { generatePayload, SubmissionPayload } from '../services/payloadGenerator';
 import { detectCaptchaOnPage, solveCaptcha } from '../services/captchaSolverService';
@@ -14,7 +13,16 @@ interface FormSubmissionJobData {
 
 const MAX_RETRIES = 3;
 
-async function fillFormField(page: Page, selectors: string[], value: string): Promise<boolean> {
+async function getPlaywright() {
+  try {
+    const pw = await import('playwright');
+    return pw;
+  } catch {
+    throw new Error('Playwright is not installed. Install it in the workers service to use auto-form submissions.');
+  }
+}
+
+async function fillFormField(page: any, selectors: string[], value: string): Promise<boolean> {
   for (const selector of selectors) {
     try {
       const element = await page.$(selector);
@@ -30,7 +38,7 @@ async function fillFormField(page: Page, selectors: string[], value: string): Pr
   return false;
 }
 
-async function selectCategory(page: Page, categories: string[]): Promise<boolean> {
+async function selectCategory(page: any, categories: string[]): Promise<boolean> {
   const selectors = [
     'select[name*="category"]',
     'select[name*="type"]',
@@ -46,7 +54,7 @@ async function selectCategory(page: Page, categories: string[]): Promise<boolean
         const options = await select.$$('option');
         for (const option of options) {
           const text = await option.textContent();
-          if (text && categories.some(cat =>
+          if (text && categories.some((cat: string) =>
             text.toLowerCase().includes(cat.toLowerCase()) ||
             cat.toLowerCase().includes(text.toLowerCase())
           )) {
@@ -72,7 +80,7 @@ async function selectCategory(page: Page, categories: string[]): Promise<boolean
   return false;
 }
 
-async function uploadFile(page: Page, selectors: string[], fileUrl: string): Promise<boolean> {
+async function uploadFile(page: any, selectors: string[], fileUrl: string): Promise<boolean> {
   for (const selector of selectors) {
     try {
       const input = await page.$(selector);
@@ -90,7 +98,7 @@ async function uploadFile(page: Page, selectors: string[], fileUrl: string): Pro
   return false;
 }
 
-async function fillForm(page: Page, payload: SubmissionPayload): Promise<void> {
+async function fillForm(page: any, payload: SubmissionPayload): Promise<void> {
   await fillFormField(page, [
     'input[name*="name"]',
     'input[name*="title"]',
@@ -149,7 +157,7 @@ async function fillForm(page: Page, payload: SubmissionPayload): Promise<void> {
   }
 }
 
-async function submitForm(page: Page): Promise<boolean> {
+async function submitForm(page: any): Promise<boolean> {
   const submitSelectors = [
     'button[type="submit"]',
     'input[type="submit"]',
@@ -182,12 +190,14 @@ export async function processFormSubmission(job: Job<FormSubmissionJobData>): Pr
   const { submissionId, companyId, directoryId, submitUrl } = job.data;
 
   const attemptCount = await incrementAttempt(submissionId);
-  let browser: Browser | null = null;
+  let browser: any = null;
 
   try {
     await updateSubmissionStatus(submissionId, 'retrying');
 
     const payload = await generatePayload(companyId, directoryId);
+
+    const pw = await getPlaywright();
 
     const launchOptions: Record<string, unknown> = {
       headless: true,
@@ -201,7 +211,7 @@ export async function processFormSubmission(job: Job<FormSubmissionJobData>): Pr
       }
     }
 
-    browser = await chromium.launch(launchOptions);
+    browser = await pw.chromium.launch(launchOptions);
     const context = await browser.newContext({
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       viewport: { width: 1280, height: 800 },
@@ -238,7 +248,7 @@ export async function processFormSubmission(job: Job<FormSubmissionJobData>): Pr
       const pageText = await page.textContent('body') || '';
 
       const successIndicators = ['thank', 'success', 'submitted', 'received', 'confirm', 'pending'];
-      const isSuccess = successIndicators.some(ind => pageText.toLowerCase().includes(ind)) ||
+      const isSuccess = successIndicators.some((ind: string) => pageText.toLowerCase().includes(ind)) ||
         currentUrl !== submitUrl;
 
       if (isSuccess) {
