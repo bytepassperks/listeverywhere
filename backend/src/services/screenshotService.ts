@@ -1,113 +1,56 @@
-import { chromium, Browser, Page } from 'playwright';
-import path from 'path';
-import fs from 'fs';
-import { env } from '../config/env';
 import { query } from '../db/pool';
 
-const VIEWPORT = { width: 1280, height: 800 };
+const SCREENSHOT_WIDTH = 1920;
+const SCREENSHOT_HEIGHT = 1080;
 
-function ensureScreenshotDir(): void {
-  if (!fs.existsSync(env.SCREENSHOTS_DIR)) {
-    fs.mkdirSync(env.SCREENSHOTS_DIR, { recursive: true });
-  }
-}
-
-async function takeScreenshot(
-  browser: Browser,
-  url: string,
-  outputPath: string,
-  waitForSelector?: string
-): Promise<void> {
-  const page: Page = await browser.newPage();
-  await page.setViewportSize(VIEWPORT);
-
-  try {
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
-
-    if (waitForSelector) {
-      await page.waitForSelector(waitForSelector, { timeout: 10000 }).catch(() => {});
-    }
-
-    await page.waitForTimeout(2000);
-
-    await page.evaluate(() => {
-      const cookieBanners = document.querySelectorAll(
-        '[class*="cookie"], [class*="consent"], [id*="cookie"], [id*="consent"], [class*="gdpr"]'
-      );
-      cookieBanners.forEach(el => (el as HTMLElement).style.display = 'none');
-
-      const modals = document.querySelectorAll('[class*="modal"], [class*="popup"], [class*="overlay"]');
-      modals.forEach(el => {
-        const style = window.getComputedStyle(el);
-        if (style.position === 'fixed' || style.position === 'absolute') {
-          (el as HTMLElement).style.display = 'none';
-        }
-      });
-    });
-
-    await page.screenshot({
-      path: outputPath,
-      fullPage: false,
-      type: 'png',
-    });
-  } finally {
-    await page.close();
-  }
+function buildScreenshotUrl(pageUrl: string): string {
+  const encoded = encodeURIComponent(pageUrl);
+  return `https://image.thum.io/get/width/${SCREENSHOT_WIDTH}/crop/${SCREENSHOT_HEIGHT}/noanimate/${pageUrl}`;
 }
 
 export async function generateScreenshots(
   companyId: string,
   websiteUrl: string
 ): Promise<{ homepage?: string; features?: string; pricing?: string }> {
-  ensureScreenshotDir();
-
   const normalizedUrl = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`;
   const baseUrl = new URL(normalizedUrl).origin;
   const results: { homepage?: string; features?: string; pricing?: string } = {};
 
-  let browser: Browser | null = null;
+  const pages = [
+    { type: 'homepage' as const, url: normalizedUrl },
+    { type: 'features' as const, url: `${baseUrl}/features` },
+    { type: 'pricing' as const, url: `${baseUrl}/pricing` },
+  ];
 
-  try {
-    browser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-    });
+  for (const pageInfo of pages) {
+    try {
+      const screenshotUrl = buildScreenshotUrl(pageInfo.url);
 
-    const pages = [
-      { type: 'homepage' as const, url: normalizedUrl, file: `${companyId}_homepage.png` },
-      { type: 'features' as const, url: `${baseUrl}/features`, file: `${companyId}_features.png` },
-      { type: 'pricing' as const, url: `${baseUrl}/pricing`, file: `${companyId}_pricing.png` },
-    ];
+      // Verify the screenshot URL is reachable
+      const resp = await fetch(screenshotUrl, { method: 'HEAD', signal: AbortSignal.timeout(15000) });
 
-    for (const pageInfo of pages) {
-      const outputPath = path.join(env.SCREENSHOTS_DIR, pageInfo.file);
+      if (resp.ok) {
+        // Delete existing screenshot of same type, then insert
+        await query(
+          `DELETE FROM screenshots WHERE company_id = $1 AND type = $2`,
+          [companyId, pageInfo.type]
+        );
+        await query(
+          `INSERT INTO screenshots (company_id, type, file_url) VALUES ($1, $2, $3)`,
+          [companyId, pageInfo.type, screenshotUrl]
+        );
 
-      try {
-        await takeScreenshot(browser, pageInfo.url, outputPath);
-
-        if (fs.existsSync(outputPath)) {
-          const fileUrl = `/screenshots/${pageInfo.file}`;
-
-          await query(
-            `INSERT INTO screenshots (company_id, type, file_url)
-             VALUES ($1, $2, $3)
-             ON CONFLICT DO NOTHING`,
-            [companyId, pageInfo.type, fileUrl]
-          );
-
-          results[pageInfo.type] = fileUrl;
-        }
-      } catch (err) {
-        console.warn(`Screenshot failed for ${pageInfo.type} (${pageInfo.url}):`, err instanceof Error ? err.message : err);
+        results[pageInfo.type] = screenshotUrl;
+        console.log(`Screenshot captured for ${pageInfo.type}: ${screenshotUrl}`);
+      } else {
+        console.warn(`Screenshot service returned ${resp.status} for ${pageInfo.url}`);
       }
-    }
-
-    return results;
-  } finally {
-    if (browser) {
-      await browser.close();
+    } catch (err) {
+      console.warn(`Screenshot failed for ${pageInfo.type} (${pageInfo.url}):`, err instanceof Error ? err.message : err);
     }
   }
+
+  return results;
 }
 
 export async function getScreenshots(companyId: string): Promise<Array<{ type: string; file_url: string }>> {
