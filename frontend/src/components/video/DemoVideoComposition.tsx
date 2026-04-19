@@ -10,19 +10,17 @@ import { DemoVideoProps, SCENE_DURATION_FRAMES, TRANSITION_FRAMES } from './type
 
 const SceneWrapper: React.FC<{
   children: React.ReactNode;
-  from: number;
   durationInFrames: number;
-}> = ({ children, from, durationInFrames }) => {
+}> = ({ children, durationInFrames }) => {
   const frame = useCurrentFrame();
-  const relativeFrame = frame - from;
 
-  const fadeIn = interpolate(relativeFrame, [0, TRANSITION_FRAMES], [0, 1], {
+  const fadeIn = interpolate(frame, [0, TRANSITION_FRAMES], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
 
   const fadeOut = interpolate(
-    relativeFrame,
+    frame,
     [durationInFrames - TRANSITION_FRAMES, durationInFrames],
     [1, 0],
     { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
@@ -46,31 +44,31 @@ export const DemoVideoComposition: React.FC<{ data: DemoVideoProps }> = ({ data 
   return (
     <AbsoluteFill style={{ background: '#050510' }}>
       <Sequence from={sceneStart(0)} durationInFrames={sceneDur}>
-        <SceneWrapper from={sceneStart(0)} durationInFrames={sceneDur}>
+        <SceneWrapper durationInFrames={sceneDur}>
           <IntroScene data={data} />
         </SceneWrapper>
       </Sequence>
 
       <Sequence from={sceneStart(1)} durationInFrames={sceneDur}>
-        <SceneWrapper from={sceneStart(1)} durationInFrames={sceneDur}>
+        <SceneWrapper durationInFrames={sceneDur}>
           <FeaturesScene data={data} />
         </SceneWrapper>
       </Sequence>
 
       <Sequence from={sceneStart(2)} durationInFrames={sceneDur}>
-        <SceneWrapper from={sceneStart(2)} durationInFrames={sceneDur}>
+        <SceneWrapper durationInFrames={sceneDur}>
           <ScreenshotsScene data={data} />
         </SceneWrapper>
       </Sequence>
 
       <Sequence from={sceneStart(3)} durationInFrames={sceneDur}>
-        <SceneWrapper from={sceneStart(3)} durationInFrames={sceneDur}>
+        <SceneWrapper durationInFrames={sceneDur}>
           <StatsScene data={data} />
         </SceneWrapper>
       </Sequence>
 
       <Sequence from={sceneStart(4)} durationInFrames={sceneDur}>
-        <SceneWrapper from={sceneStart(4)} durationInFrames={sceneDur}>
+        <SceneWrapper durationInFrames={sceneDur}>
           <OutroScene data={data} />
         </SceneWrapper>
       </Sequence>
