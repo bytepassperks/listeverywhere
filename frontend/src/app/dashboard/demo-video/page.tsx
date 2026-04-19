@@ -53,10 +53,16 @@ function DemoVideoContent() {
         pricingModel: companyData.company.pricing_model,
         foundedYear: companyData.company.founded_year,
         socialLinks: (companyData.company.social_links as Record<string, string>) || {},
-        screenshots: companyData.screenshots.map((s: Screenshot) => ({
-          type: s.type,
-          file_url: s.file_url,
-        })),
+        screenshots: companyData.screenshots.length > 0
+          ? companyData.screenshots.map((s: Screenshot) => ({
+              type: s.type,
+              file_url: s.file_url,
+            }))
+          : [
+              { type: 'homepage', file_url: '/screenshots/homepage.png' },
+              { type: 'features', file_url: '/screenshots/features.png' },
+              { type: 'pricing', file_url: '/screenshots/pricing.png' },
+            ],
         submissionStats: submissionData.statusCounts,
         totalDirectories: dirStats.total,
       };

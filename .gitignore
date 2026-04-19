@@ -4,7 +4,7 @@ dist/
 .env
 .env.local
 *.log
-screenshots/
+/screenshots/
 uploads/
 .DS_Store
 coverage/
