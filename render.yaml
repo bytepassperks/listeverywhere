@@ -45,7 +45,7 @@ services:
   - type: worker
     name: listeverywhere-workers
     runtime: node
-    buildCommand: cd backend && npm install --include=dev
+    buildCommand: cd backend && npm install --include=dev && npm run build
     startCommand: cd backend && npm run workers
     envVars:
       - key: DATABASE_URL
@@ -71,7 +71,7 @@ services:
   - type: cron
     name: listeverywhere-cron
     runtime: node
-    buildCommand: cd backend && npm install --include=dev
+    buildCommand: cd backend && npm install --include=dev && npm run build
     startCommand: cd backend && npm run cron
     schedule: "0 3 * * 1"
     envVars:

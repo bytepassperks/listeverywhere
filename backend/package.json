@@ -6,8 +6,8 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "workers": "tsx src/workers/index.ts",
-    "cron": "tsx src/jobs/weeklyUpdater.ts",
+    "workers": "node dist/workers/index.js",
+    "cron": "node dist/jobs/weeklyUpdater.js",
     "lint": "tsc --noEmit",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx seed/seedDirectories.ts"
