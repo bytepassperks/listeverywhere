@@ -104,8 +104,18 @@ function categorizePages(pages: CrawlPage[]): {
   };
 
   for (const page of pages) {
+    if (!page.url) {
+      result.other.push(page);
+      continue;
+    }
     const urlLower = page.url.toLowerCase();
-    const pathPart = new URL(urlLower).pathname;
+    let pathPart: string;
+    try {
+      pathPart = new URL(urlLower).pathname;
+    } catch {
+      result.other.push(page);
+      continue;
+    }
 
     if (pathPart === '/' || pathPart === '') {
       result.homepage = page;
@@ -139,7 +149,12 @@ export async function crawlCompanySite(url: string): Promise<CrawlResult> {
       throw new Error('No pages were crawled');
     }
 
-    const categorized = categorizePages(pages);
+    const validPages = pages.filter(p => p.url && p.markdown);
+    if (validPages.length === 0) {
+      throw new Error('No valid pages with URLs were crawled');
+    }
+
+    const categorized = categorizePages(validPages);
 
     const combinedMarkdown = [
       categorized.homepage ? `# HOMEPAGE\n${categorized.homepage.markdown}` : '',
@@ -152,7 +167,7 @@ export async function crawlCompanySite(url: string): Promise<CrawlResult> {
 
     return {
       success: true,
-      data: pages,
+      data: validPages,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown crawl error';
