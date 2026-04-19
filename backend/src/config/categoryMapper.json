@@ -1,0 +1,56 @@
+{
+  "mappings": {
+    "AI Writing Tool": ["Productivity", "Copywriting", "Marketing", "AI Tools", "Content Creation"],
+    "AI Image Generator": ["AI Tools", "Design", "Creative Tools", "Image Generation"],
+    "AI Chatbot": ["AI Tools", "Customer Support", "Conversational AI", "Automation"],
+    "AI Code Assistant": ["Developer Tools", "AI Tools", "Productivity", "Code Generation"],
+    "AI Video Tool": ["AI Tools", "Video", "Content Creation", "Media"],
+    "AI Audio Tool": ["AI Tools", "Audio", "Music", "Media"],
+    "Project Management": ["Productivity", "Team Collaboration", "Project Management", "Business Tools"],
+    "CRM": ["Sales", "Customer Relationship Management", "Business Tools", "Marketing"],
+    "Email Marketing": ["Marketing", "Email", "Automation", "Business Tools"],
+    "Social Media Management": ["Marketing", "Social Media", "Content Creation", "Automation"],
+    "SEO Tool": ["Marketing", "SEO", "Analytics", "Business Tools"],
+    "Analytics Platform": ["Analytics", "Business Intelligence", "Data", "Reporting"],
+    "E-commerce Platform": ["E-commerce", "Business Tools", "Online Store", "Payments"],
+    "Payment Processing": ["Fintech", "Payments", "Business Tools", "E-commerce"],
+    "Cloud Storage": ["Cloud", "Storage", "Productivity", "Business Tools"],
+    "Communication Tool": ["Communication", "Team Collaboration", "Messaging", "Business Tools"],
+    "Design Tool": ["Design", "Creative Tools", "UI/UX", "Productivity"],
+    "Developer Tool": ["Developer Tools", "API", "Infrastructure", "Productivity"],
+    "HR Software": ["Human Resources", "Business Tools", "Recruitment", "Team Management"],
+    "Accounting Software": ["Finance", "Accounting", "Business Tools", "Invoicing"],
+    "Education Platform": ["Education", "E-learning", "EdTech", "Training"],
+    "Health Tech": ["Health", "Wellness", "Medical", "Fitness"],
+    "Cybersecurity": ["Security", "Privacy", "Business Tools", "Enterprise"],
+    "No-Code Tool": ["No-Code", "Low-Code", "Productivity", "Business Tools"],
+    "Database Tool": ["Developer Tools", "Database", "Infrastructure", "Data"],
+    "API Platform": ["Developer Tools", "API", "Integration", "Infrastructure"],
+    "Automation Tool": ["Automation", "Productivity", "Workflow", "Business Tools"],
+    "SaaS": ["Software", "Business Tools", "Cloud", "Productivity"],
+    "Startup Tool": ["Startup", "Business Tools", "Growth", "Productivity"],
+    "Marketing Tool": ["Marketing", "Growth", "Analytics", "Business Tools"]
+  },
+  "directoryTaxonomies": {
+    "ProductHunt": {
+      "categories": ["Productivity", "Developer Tools", "Design Tools", "Marketing", "AI", "Finance", "Education", "Health & Fitness", "Communication", "Entertainment"],
+      "matchStrategy": "closest"
+    },
+    "BetaList": {
+      "categories": ["Tech", "Design", "Marketing", "Productivity", "Finance", "Education", "Health", "Social"],
+      "matchStrategy": "closest"
+    },
+    "AlternativeTo": {
+      "categories": ["Office & Productivity", "Developer Tools", "Security & Privacy", "Social & Communications", "File Sharing", "Photos & Graphics", "Video", "Audio", "Education", "Games"],
+      "matchStrategy": "closest"
+    },
+    "G2": {
+      "categories": ["Project Management", "CRM", "Marketing Automation", "HR", "Accounting", "Sales", "Customer Service", "IT Management", "Development", "Design"],
+      "matchStrategy": "closest"
+    },
+    "Capterra": {
+      "categories": ["Project Management", "Accounting", "CRM", "HR", "Marketing", "IT", "Sales", "Customer Service", "Construction", "Education"],
+      "matchStrategy": "closest"
+    }
+  }
+}
