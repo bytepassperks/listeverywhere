@@ -221,6 +221,41 @@ export async function companyRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ payloads });
   });
 
+  app.post<{ Params: { id: string }; Body: { screenshots: Array<{ type: string; file_url: string }> } }>(
+    '/api/companies/:id/screenshots',
+    async (request, reply) => {
+      const userId = request.userId!;
+      const company = await queryOne<CompanyRow>(
+        'SELECT id FROM companies WHERE id = $1 AND user_id = $2',
+        [request.params.id, userId]
+      );
+
+      if (!company) {
+        return reply.status(404).send({ error: 'Company not found' });
+      }
+
+      const { screenshots } = request.body;
+      if (!Array.isArray(screenshots) || screenshots.length === 0) {
+        return reply.status(400).send({ error: 'screenshots array is required' });
+      }
+
+      for (const ss of screenshots) {
+        // Delete existing screenshot of same type, then insert new one
+        await query(
+          `DELETE FROM screenshots WHERE company_id = $1 AND type = $2`,
+          [company.id, ss.type]
+        );
+        await query(
+          `INSERT INTO screenshots (company_id, type, file_url) VALUES ($1, $2, $3)`,
+          [company.id, ss.type, ss.file_url]
+        );
+      }
+
+      const updated = await getScreenshots(company.id);
+      return reply.send({ screenshots: updated });
+    }
+  );
+
   app.post<{ Params: { id: string } }>('/api/companies/:id/resubmit', async (request, reply) => {
     const userId = request.userId!;
     const company = await queryOne<CompanyRow>(
