@@ -12,6 +12,7 @@ import { jobRoutes } from './routes/jobs';
 import path from 'path';
 import fs from 'fs';
 import { runMigrations } from './db/migrate';
+import { seedDirectories } from './db/seed';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -90,6 +91,13 @@ async function start() {
     console.log('Database migrations completed');
   } catch (err) {
     console.error('Migration error (continuing anyway):', err);
+  }
+
+  try {
+    await seedDirectories();
+    console.log('Directory seed check completed');
+  } catch (err) {
+    console.error('Seed error (continuing anyway):', err);
   }
 
   const app = await buildApp();

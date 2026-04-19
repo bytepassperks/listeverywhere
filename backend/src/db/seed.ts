@@ -1,7 +1,21 @@
-import { pool, query, queryOne } from '../src/db/pool';
-import directories from './directories.json';
+import fs from 'fs';
+import path from 'path';
+import { query, queryOne } from './pool';
 
-export async function seedDirectories() {
+interface DirectorySeed {
+  name: string;
+  submit_url: string;
+  submission_type: string;
+  title_limit: number;
+  desc_limit: number;
+  requires_logo: boolean;
+  requires_screenshot: boolean;
+  requires_category: boolean;
+  category_taxonomy: string[];
+  notes: string;
+}
+
+export async function seedDirectories(): Promise<void> {
   const existing = await queryOne<{ count: string }>('SELECT COUNT(*) as count FROM directories');
   const count = parseInt(existing?.count || '0', 10);
 
@@ -10,6 +24,13 @@ export async function seedDirectories() {
     return;
   }
 
+  const seedPath = path.resolve(__dirname, '../../seed/directories.json');
+  if (!fs.existsSync(seedPath)) {
+    console.warn('Seed file not found at', seedPath, '- skipping directory seed');
+    return;
+  }
+
+  const directories: DirectorySeed[] = JSON.parse(fs.readFileSync(seedPath, 'utf-8'));
   console.log(`Seeding ${directories.length} directories...`);
 
   for (const dir of directories) {
@@ -36,13 +57,4 @@ export async function seedDirectories() {
   }
 
   console.log(`Done. ${directories.length} directories seeded.`);
-}
-
-if (require.main === module) {
-  seedDirectories()
-    .then(() => pool.end())
-    .catch((err) => {
-      console.error('Seed failed:', err);
-      process.exit(1);
-    });
 }
