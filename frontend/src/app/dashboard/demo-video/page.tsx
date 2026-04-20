@@ -47,7 +47,11 @@ function DemoVideoContent() {
         tagline: companyData.company.tagline,
         descriptionShort: companyData.company.description_short,
         descriptionLong: companyData.company.description_long,
-        logoUrl: companyData.company.logo_url,
+        logoUrl: companyData.company.logo_url || (() => {
+          try {
+            return `https://logo.clearbit.com/${new URL(companyData.company.website).hostname}`;
+          } catch { return ''; }
+        })(),
         website: companyData.company.website,
         categories: (companyData.company.categories as string[]) || [],
         pricingModel: companyData.company.pricing_model,

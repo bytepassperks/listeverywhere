@@ -118,10 +118,12 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
 
       <div className="p-6 rounded-xl border mb-6" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
         <div className="flex items-start gap-4">
-          {company.logo_url && (
-            <img src={company.logo_url} alt={company.name} className="w-16 h-16 rounded-lg object-cover"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-          )}
+          <img
+            src={company.logo_url || (() => { try { return `https://logo.clearbit.com/${new URL(company.website).hostname}`; } catch { return ''; } })()}
+            alt={company.name}
+            className="w-16 h-16 rounded-lg object-cover"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+          />
           <div className="flex-1">
             <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>{company.name}</h1>
             <p className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>{company.tagline}</p>
