@@ -14,7 +14,7 @@ const CircularProgress: React.FC<{
   const progress = spring({
     frame: frame - delay,
     fps,
-    config: { damping: 25, mass: 2, stiffness: 40 },
+    config: { damping: 15, mass: 0.5, stiffness: 100 },
   });
   const percentage = max > 0 ? (value / max) * Math.max(0, progress) : 0;
   const radius = (size - strokeWidth) / 2;
@@ -151,9 +151,7 @@ export const StatsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) => {
           {data.companyName}{' '}
           <span
             style={{
-              background: 'linear-gradient(135deg, #818cf8 0%, #c084fc 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
+              color: '#a78bfa',
             }}
           >
             at a Glance
@@ -183,11 +181,11 @@ export const StatsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) => {
         }}
       >
         {heroStats.map((stat, i) => {
-          const delay = 20 + i * 10;
+          const delay = 5 + i * 4;
           const cardProgress = spring({
             frame: frame - delay,
             fps,
-            config: { damping: 14, mass: 0.6, stiffness: 90 },
+            config: { damping: 14, mass: 0.4, stiffness: 120 },
           });
           const cardScale = interpolate(Math.max(0, cardProgress), [0, 1], [0.8, 1]);
           const cardOpacity = interpolate(Math.max(0, cardProgress), [0, 1], [0, 1]);
@@ -195,9 +193,9 @@ export const StatsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) => {
           const floatY = Math.sin(frame * 0.03 + i * 1.3) * 3;
 
           const countProgress = spring({
-            frame: frame - delay - 10,
+            frame: frame - delay - 3,
             fps,
-            config: { damping: 25, mass: 2, stiffness: 40 },
+            config: { damping: 15, mass: 0.5, stiffness: 100 },
           });
           const displayValue = Math.round(stat.value * Math.max(0, countProgress));
 
@@ -238,7 +236,7 @@ export const StatsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) => {
                   size={80}
                   strokeWidth={4}
                   frame={frame}
-                  delay={delay + 15}
+                  delay={delay + 5}
                   fps={fps}
                 />
                 <div
@@ -291,11 +289,11 @@ export const StatsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) => {
         }}
       >
         {barData.map((bar, i) => {
-          const delay = 60 + i * 8;
+          const delay = 15 + i * 4;
           const barProgress = spring({
             frame: frame - delay,
             fps,
-            config: { damping: 18, mass: 1.2, stiffness: 50 },
+            config: { damping: 14, mass: 0.5, stiffness: 100 },
           });
           const barWidth = interpolate(Math.max(0, barProgress), [0, 1], [0, Math.max((bar.value / maxBarValue) * 100, 3)]);
           const barOpacity = interpolate(Math.max(0, barProgress), [0, 1], [0, 1]);

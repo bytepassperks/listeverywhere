@@ -219,9 +219,7 @@ export const OutroScene: React.FC<{ data: DemoVideoProps }> = ({ data }) => {
           Try{' '}
           <span
             style={{
-              background: 'linear-gradient(135deg, #818cf8 0%, #c084fc 50%, #f0abfc 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
+              color: '#a78bfa',
             }}
           >
             {data.companyName} Today

@@ -111,11 +111,11 @@ async function exportWithWebCodecs(
 
   for (let i = 0; i < totalFrames; i += frameStep) {
     playerRef.seekTo(i);
-    await sleep(40); // Wait for React to render
+    await sleep(100); // Wait for React/Remotion to fully render animations at this frame
 
     // Swap external images to data URIs before each capture
     swapImagesToDataUri(contentEl, imageMap);
-    await sleep(10);
+    await sleep(20);
 
     const canvas = await html2canvas(contentEl, {
       width,
@@ -207,11 +207,11 @@ async function exportWithMediaRecorder(
   const frameStep = 2;
   for (let i = 0; i < totalFrames; i += frameStep) {
     playerRef.seekTo(i);
-    await sleep(40);
+    await sleep(100);
 
     // Swap external images to data URIs before each capture
     swapImagesToDataUri(contentEl, imageMap);
-    await sleep(10);
+    await sleep(20);
 
     const captured = await html2canvas(contentEl, {
       width,

@@ -214,9 +214,7 @@ export const FeaturesScene: React.FC<{ data: DemoVideoProps }> = ({ data }) => {
           Why{' '}
           <span
             style={{
-              background: 'linear-gradient(135deg, #818cf8 0%, #c084fc 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
+              color: '#a78bfa',
             }}
           >
             {data.companyName}

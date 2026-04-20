@@ -134,9 +134,7 @@ export const ScreenshotsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) =
           See{' '}
           <span
             style={{
-              background: 'linear-gradient(135deg, #60a5fa 0%, #818cf8 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
+              color: '#818cf8',
             }}
           >
             {data.companyName} in Action
