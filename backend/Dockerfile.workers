@@ -1,11 +1,8 @@
 FROM node:22-slim
 
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
-ENV PUPPETEER_CACHE_DIR=/opt/puppeteer-cache
-
 WORKDIR /app
 
-# Install Chromium dependencies (smaller footprint than Playwright)
+# Install system Chromium + fonts (puppeteer-core uses this, no extra download)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     fonts-liberation \
@@ -17,11 +14,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libasound2 \
     && rm -rf /var/lib/apt/lists/*
 
-# Tell Puppeteer to use system Chromium instead of downloading its own
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 COPY package*.json ./
 
+# puppeteer-core doesn't download Chromium, so npm install is fast
 RUN npm install --include=dev
 
 COPY . .
