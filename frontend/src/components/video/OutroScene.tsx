@@ -43,11 +43,12 @@ export const OutroScene: React.FC<{ data: DemoVideoProps }> = ({ data }) => {
 
   // Stats row at bottom
   const statsStartFrame = 70;
+  const catCount = (data.categories || []).length;
   const outroStats = [
-    { label: 'Directories', value: `${data.totalDirectories}+` },
-    { label: 'Submission Types', value: '4' },
-    { label: 'Parallel Workers', value: '20x' },
-    { label: 'Auto Updates', value: 'Weekly' },
+    { label: 'Categories', value: `${catCount || 5}+` },
+    { label: 'Pricing', value: (data.pricingModel || 'Free').charAt(0).toUpperCase() + (data.pricingModel || 'free').slice(1) },
+    { label: 'Features', value: '6+' },
+    { label: 'Availability', value: '24/7' },
   ];
 
   // Ambient particles
@@ -215,7 +216,7 @@ export const OutroScene: React.FC<{ data: DemoVideoProps }> = ({ data }) => {
             fontFamily: 'system-ui, -apple-system, sans-serif',
           }}
         >
-          Get{' '}
+          Try{' '}
           <span
             style={{
               background: 'linear-gradient(135deg, #818cf8 0%, #c084fc 50%, #f0abfc 100%)',
@@ -223,7 +224,7 @@ export const OutroScene: React.FC<{ data: DemoVideoProps }> = ({ data }) => {
               WebkitTextFillColor: 'transparent',
             }}
           >
-            Listed Everywhere
+            {data.companyName} Today
           </span>
         </h1>
       </div>
@@ -242,7 +243,7 @@ export const OutroScene: React.FC<{ data: DemoVideoProps }> = ({ data }) => {
           zIndex: 2,
         }}
       >
-        {data.companyName} is now on {data.totalDirectories}+ startup directories
+        {data.tagline || data.descriptionShort || `Discover what ${data.companyName} can do for you`}
       </p>
 
       {/* Decorative line */}

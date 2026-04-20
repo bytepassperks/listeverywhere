@@ -67,8 +67,10 @@ function deriveFeatures(data: DemoVideoProps) {
     const catLower = cat.toLowerCase();
     if (catLower.includes('ai') || catLower.includes('artificial intelligence')) {
       features.push({ title: 'AI-Powered', desc: `${name} leverages advanced AI to deliver intelligent, accurate results` });
-    } else if (catLower.includes('writing') || catLower.includes('content creation')) {
-      features.push({ title: 'Content Tools', desc: `Professional writing and content creation tools built for quality output` });
+    } else if (catLower.includes('content creation')) {
+      features.push({ title: 'Content Creation', desc: `Create polished, professional content that engages your audience` });
+    } else if (catLower.includes('writing')) {
+      features.push({ title: 'Writing Suite', desc: `Advanced writing tools to craft, edit, and perfect your content` });
     } else if (catLower.includes('productivity')) {
       features.push({ title: 'Productivity', desc: `Streamline your workflow and accomplish more in less time` });
     } else if (catLower.includes('marketing')) {

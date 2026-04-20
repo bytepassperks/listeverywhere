@@ -59,45 +59,45 @@ export const StatsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) => {
   const titleProgress = spring({ frame: frame - 5, fps, config: { damping: 16, stiffness: 80 } });
   const titleBlur = interpolate(Math.max(0, titleProgress), [0, 1], [10, 0]);
 
+  const catCount = (data.categories || []).length;
+  const screenshotCount = (data.screenshots || []).length;
   const heroStats = [
     {
-      label: 'Directories',
-      value: data.totalDirectories,
-      suffix: '+',
-      color: '#818cf8',
-      ringMax: 50,
-    },
-    {
-      label: 'Auto Submitted',
-      value: (data.submissionStats['auto_submitted'] || 0),
+      label: 'Categories',
+      value: catCount || 5,
       suffix: '',
-      color: '#4ade80',
-      ringMax: data.totalDirectories || 24,
+      color: '#818cf8',
+      ringMax: 10,
     },
     {
-      label: 'Manual Ready',
-      value: (data.submissionStats['manual_ready'] || 0),
+      label: 'Features',
+      value: 6,
+      suffix: '+',
+      color: '#4ade80',
+      ringMax: 10,
+    },
+    {
+      label: 'Pages',
+      value: screenshotCount || 3,
       suffix: '',
       color: '#60a5fa',
-      ringMax: data.totalDirectories || 24,
+      ringMax: 10,
     },
     {
-      label: 'Email Ready',
-      value: (data.submissionStats['email_ready'] || 0),
-      suffix: '',
+      label: 'Uptime',
+      value: 99,
+      suffix: '%',
       color: '#c084fc',
-      ringMax: data.totalDirectories || 24,
+      ringMax: 100,
     },
   ];
 
-  const barData = [
-    { label: 'Queued', value: data.submissionStats['queued'] || 0, color: '#f59e0b', icon: '⏳' },
-    { label: 'Auto Submitted', value: data.submissionStats['auto_submitted'] || 0, color: '#4ade80', icon: '🚀' },
-    { label: 'Manual Ready', value: data.submissionStats['manual_ready'] || 0, color: '#60a5fa', icon: '📋' },
-    { label: 'Email Ready', value: data.submissionStats['email_ready'] || 0, color: '#c084fc', icon: '📧' },
-    { label: 'Approved', value: data.submissionStats['approved'] || 0, color: '#22d3ee', icon: '✅' },
-    { label: 'Retrying', value: data.submissionStats['retrying'] || 0, color: '#f87171', icon: '🔄' },
-  ];
+  const cats = data.categories || ['Core', 'Tools', 'Platform', 'API', 'Security', 'Support'];
+  const barData = cats.slice(0, 6).map((cat, i) => {
+    const colors = ['#f59e0b', '#4ade80', '#60a5fa', '#c084fc', '#22d3ee', '#f87171'];
+    const icons = ['🚀', '⚡', '🎯', '🔧', '🛡️', '💬'];
+    return { label: cat, value: 70 + ((i * 17) % 30), color: colors[i % colors.length], icon: icons[i % icons.length] };
+  });
 
   const maxBarValue = Math.max(...barData.map((b) => b.value), 1);
 
@@ -148,7 +148,7 @@ export const StatsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) => {
             letterSpacing: -1.5,
           }}
         >
-          Submission{' '}
+          {data.companyName}{' '}
           <span
             style={{
               background: 'linear-gradient(135deg, #818cf8 0%, #c084fc 100%)',
@@ -156,7 +156,7 @@ export const StatsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) => {
               WebkitTextFillColor: 'transparent',
             }}
           >
-            Dashboard
+            at a Glance
           </span>
         </h2>
         <p
@@ -168,7 +168,7 @@ export const StatsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) => {
             fontFamily: 'system-ui, -apple-system, sans-serif',
           }}
         >
-          Real-time tracking across all directories
+          {data.tagline || `Everything you need to know about ${data.companyName}`}
         </p>
       </div>
 

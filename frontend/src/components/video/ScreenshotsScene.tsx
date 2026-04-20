@@ -60,16 +60,16 @@ export const ScreenshotsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) =
 
   // Annotations
   const annotations = [
-    { text: 'AI-Extracted Metadata', x: -80, y: -60, delay: 60 },
-    { text: 'Auto-Generated Screenshots', x: 460, y: 40, delay: 80 },
-    { text: 'Directory-Ready Format', x: -60, y: 200, delay: 100 },
+    { text: data.categories?.[0] || 'Key Feature', x: -80, y: -60, delay: 60 },
+    { text: data.pricingModel ? `${data.pricingModel.charAt(0).toUpperCase() + data.pricingModel.slice(1)} Plans` : 'Flexible Pricing', x: 460, y: 40, delay: 80 },
+    { text: data.categories?.[1] || 'Built for You', x: -60, y: 200, delay: 100 },
   ];
 
   // Floating tech badges
   const badges = [
-    { text: '1920 x 1080', x: -140, y: -40, delay: 70, color: '#6366f1' },
-    { text: 'HD Retina', x: 530, y: -30, delay: 90, color: '#22c55e' },
-    { text: 'Auto-Captured', x: 510, y: 230, delay: 105, color: '#8b5cf6' },
+    { text: data.categories?.[2] || 'Powerful', x: -140, y: -40, delay: 70, color: '#6366f1' },
+    { text: data.categories?.[3] || 'Reliable', x: 530, y: -30, delay: 90, color: '#22c55e' },
+    { text: 'Try it Free', x: 510, y: 230, delay: 105, color: '#8b5cf6' },
   ];
 
   // Thumbnail strip timing
@@ -131,7 +131,7 @@ export const ScreenshotsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) =
             letterSpacing: -1.5,
           }}
         >
-          Automated{' '}
+          See{' '}
           <span
             style={{
               background: 'linear-gradient(135deg, #60a5fa 0%, #818cf8 100%)',
@@ -139,7 +139,7 @@ export const ScreenshotsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) =
               WebkitTextFillColor: 'transparent',
             }}
           >
-            Screenshot Capture
+            {data.companyName} in Action
           </span>
         </h2>
         <p
@@ -151,7 +151,7 @@ export const ScreenshotsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) =
             fontFamily: 'system-ui, -apple-system, sans-serif',
           }}
         >
-          Pixel-perfect captures of {data.companyName} for every directory
+          {data.tagline || data.descriptionShort || `Explore what ${data.companyName} has to offer`}
         </p>
       </div>
 
