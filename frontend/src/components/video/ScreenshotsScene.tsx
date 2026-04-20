@@ -62,14 +62,14 @@ export const ScreenshotsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) =
   const annotations = [
     { text: data.categories?.[0] || 'Key Feature', x: -80, y: -60, delay: 60 },
     { text: data.pricingModel ? `${data.pricingModel.charAt(0).toUpperCase() + data.pricingModel.slice(1)} Plans` : 'Flexible Pricing', x: 460, y: 40, delay: 80 },
-    { text: data.categories?.[1] || 'Built for You', x: -60, y: 200, delay: 100 },
+    { text: data.categories?.[1] || 'Built for You', x: -60, y: 120, delay: 100 },
   ];
 
   // Floating tech badges
   const badges = [
     { text: data.categories?.[2] || 'Powerful', x: -140, y: -40, delay: 70, color: '#6366f1' },
     { text: data.categories?.[3] || 'Reliable', x: 530, y: -30, delay: 90, color: '#22c55e' },
-    { text: 'Try it Free', x: 510, y: 230, delay: 105, color: '#8b5cf6' },
+    { text: 'Try it Free', x: 510, y: 160, delay: 105, color: '#8b5cf6' },
   ];
 
   // Thumbnail strip timing
@@ -257,7 +257,7 @@ export const ScreenshotsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) =
               height: 'calc(100% - 42px)',
               position: 'relative',
               overflow: 'hidden',
-              background: '#f8f9fa',
+              background: '#0a0a1a',
             }}
           >
             {hasRealScreenshots && currentScreenshot ? (
