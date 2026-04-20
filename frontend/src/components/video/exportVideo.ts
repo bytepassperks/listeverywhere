@@ -38,12 +38,19 @@ export async function exportVideoToMp4(
   const captureWidth = Math.round(rect.width);
   const captureHeight = Math.round(rect.height);
 
+  // Calculate scale factor to output at full composition resolution (1920x1080)
+  const scaleX = VIDEO_WIDTH / captureWidth;
+  const scaleY = VIDEO_HEIGHT / captureHeight;
+  const scale = Math.max(scaleX, scaleY);
+
+  console.log(`[Export] Capture size: ${captureWidth}x${captureHeight}, Output: ${VIDEO_WIDTH}x${VIDEO_HEIGHT}, Scale: ${scale.toFixed(2)}`);
+
   // Use WebCodecs + mp4-muxer for proper MP4 output
   if (typeof VideoEncoder !== 'undefined') {
-    await exportWithWebCodecs(playerRef, contentEl, totalFrames, captureWidth, captureHeight, companyName, onProgress);
+    await exportWithWebCodecs(playerRef, contentEl, totalFrames, captureWidth, captureHeight, scale, companyName, onProgress);
   } else {
     // Fallback: MediaRecorder for browsers without WebCodecs
-    await exportWithMediaRecorder(playerRef, contentEl, totalFrames, captureWidth, captureHeight, companyName, onProgress);
+    await exportWithMediaRecorder(playerRef, contentEl, totalFrames, captureWidth, captureHeight, scale, companyName, onProgress);
   }
 }
 
@@ -53,12 +60,16 @@ async function exportWithWebCodecs(
   totalFrames: number,
   width: number,
   height: number,
+  scale: number,
   companyName: string,
   onProgress: (progress: ExportProgress) => void,
 ): Promise<void> {
+  // Output at full composition resolution
+  const outWidth = VIDEO_WIDTH;
+  const outHeight = VIDEO_HEIGHT;
   // Ensure dimensions are even (required by H.264)
-  const encWidth = width % 2 === 0 ? width : width + 1;
-  const encHeight = height % 2 === 0 ? height : height + 1;
+  const encWidth = outWidth % 2 === 0 ? outWidth : outWidth + 1;
+  const encHeight = outHeight % 2 === 0 ? outHeight : outHeight + 1;
 
   const muxer = new Muxer({
     target: new ArrayBufferTarget(),
@@ -99,24 +110,21 @@ async function exportWithWebCodecs(
     const canvas = await html2canvas(contentEl, {
       width,
       height,
-      scale: 1,
+      scale,
       useCORS: true,
       allowTaint: true,
       backgroundColor: '#050510',
       logging: false,
     });
 
-    // Create a properly sized canvas if dimensions need adjustment
-    let frameCanvas = canvas;
-    if (canvas.width !== encWidth || canvas.height !== encHeight) {
-      frameCanvas = document.createElement('canvas');
-      frameCanvas.width = encWidth;
-      frameCanvas.height = encHeight;
-      const ctx = frameCanvas.getContext('2d')!;
-      ctx.fillStyle = '#050510';
-      ctx.fillRect(0, 0, encWidth, encHeight);
-      ctx.drawImage(canvas, 0, 0, width, height);
-    }
+    // Scale captured canvas to exact output resolution
+    const frameCanvas = document.createElement('canvas');
+    frameCanvas.width = encWidth;
+    frameCanvas.height = encHeight;
+    const ctx = frameCanvas.getContext('2d')!;
+    ctx.fillStyle = '#050510';
+    ctx.fillRect(0, 0, encWidth, encHeight);
+    ctx.drawImage(canvas, 0, 0, encWidth, encHeight);
 
     // Each captured frame represents 2 actual frames (frameStep=2)
     // So timestamp spacing should account for this
@@ -153,12 +161,13 @@ async function exportWithMediaRecorder(
   totalFrames: number,
   width: number,
   height: number,
+  scale: number,
   companyName: string,
   onProgress: (progress: ExportProgress) => void,
 ): Promise<void> {
   const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width = VIDEO_WIDTH;
+  canvas.height = VIDEO_HEIGHT;
   const ctx = canvas.getContext('2d')!;
 
   const stream = canvas.captureStream(0);
@@ -189,15 +198,15 @@ async function exportWithMediaRecorder(
     const captured = await html2canvas(contentEl, {
       width,
       height,
-      scale: 1,
+      scale,
       useCORS: true,
       allowTaint: true,
       backgroundColor: '#050510',
       logging: false,
     });
 
-    ctx.clearRect(0, 0, width, height);
-    ctx.drawImage(captured, 0, 0, width, height);
+    ctx.clearRect(0, 0, VIDEO_WIDTH, VIDEO_HEIGHT);
+    ctx.drawImage(captured, 0, 0, VIDEO_WIDTH, VIDEO_HEIGHT);
 
     if ('requestFrame' in track) {
       track.requestFrame();
