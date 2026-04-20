@@ -154,9 +154,12 @@ async function exportWithWebCodecs(
     ctx.fillStyle = '#050510';
     ctx.fillRect(0, 0, encWidth, encHeight);
     ctx.drawImage(canvas, 0, 0, encWidth, encHeight);
-    // Paint over the bottom edge to eliminate html2canvas container boundary artifact
-    ctx.fillStyle = '#050510';
-    ctx.fillRect(0, encHeight - 6, encWidth, 6);
+    // Paint over edges with pure black to eliminate contrast against video player
+    // controls. The dark navy (#050510) background + H.264 compression creates a
+    // visible lighter strip when adjacent to pure-black player chrome.
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, encHeight - 20, encWidth, 20);
+    ctx.fillRect(0, 0, encWidth, 4);
 
     // Each captured frame represents 2 actual frames (frameStep=2)
     // So timestamp spacing should account for this
@@ -248,9 +251,9 @@ async function exportWithMediaRecorder(
     ctx.fillStyle = '#050510';
     ctx.fillRect(0, 0, VIDEO_WIDTH, VIDEO_HEIGHT);
     ctx.drawImage(captured, 0, 0, VIDEO_WIDTH, VIDEO_HEIGHT);
-    // Paint over the bottom edge to eliminate html2canvas container boundary artifact
-    ctx.fillStyle = '#050510';
-    ctx.fillRect(0, VIDEO_HEIGHT - 6, VIDEO_WIDTH, 6);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, VIDEO_HEIGHT - 20, VIDEO_WIDTH, 20);
+    ctx.fillRect(0, 0, VIDEO_WIDTH, 4);
 
     if ('requestFrame' in track) {
       track.requestFrame();
