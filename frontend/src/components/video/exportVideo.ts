@@ -26,6 +26,18 @@ export async function exportVideoToMp4(
     || container.firstElementChild as HTMLElement
     || container as HTMLElement;
 
+  // Hide the Remotion player controls overlay so it doesn't get captured by html2canvas.
+  // The controls are a sibling of contentEl with position:absolute that overlaps the bottom.
+  const controlsOverlay = contentEl.parentElement
+    ? Array.from(contentEl.parentElement.children).find(
+        (child) => child !== contentEl && child instanceof HTMLElement
+      ) as HTMLElement | undefined
+    : undefined;
+  if (controlsOverlay) {
+    controlsOverlay.style.display = 'none';
+    console.log('[Export] Hidden controls overlay to prevent capture');
+  }
+
   onProgress({ phase: 'preparing', percent: 0, currentFrame: 0, totalFrames });
 
   // Pause the player for manual seeking
@@ -51,11 +63,18 @@ export async function exportVideoToMp4(
   console.log(`[Export] Capture size: ${captureWidth}x${captureHeight}, Output: ${VIDEO_WIDTH}x${VIDEO_HEIGHT}, Scale: ${scale.toFixed(2)}`);
 
   // Use WebCodecs + mp4-muxer for proper MP4 output
-  if (typeof VideoEncoder !== 'undefined') {
-    await exportWithWebCodecs(playerRef, contentEl, totalFrames, captureWidth, captureHeight, scale, companyName, imageMap, onProgress);
-  } else {
-    // Fallback: MediaRecorder for browsers without WebCodecs
-    await exportWithMediaRecorder(playerRef, contentEl, totalFrames, captureWidth, captureHeight, scale, companyName, imageMap, onProgress);
+  try {
+    if (typeof VideoEncoder !== 'undefined') {
+      await exportWithWebCodecs(playerRef, contentEl, totalFrames, captureWidth, captureHeight, scale, companyName, imageMap, onProgress);
+    } else {
+      // Fallback: MediaRecorder for browsers without WebCodecs
+      await exportWithMediaRecorder(playerRef, contentEl, totalFrames, captureWidth, captureHeight, scale, companyName, imageMap, onProgress);
+    }
+  } finally {
+    // Restore the controls overlay after export
+    if (controlsOverlay) {
+      controlsOverlay.style.display = '';
+    }
   }
 }
 
