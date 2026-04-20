@@ -42,36 +42,50 @@ export const DemoVideoComposition: React.FC<{ data: DemoVideoProps }> = ({ data 
   const sceneStart = (i: number) => i * (sceneDur - overlap);
 
   return (
-    <AbsoluteFill style={{ background: '#050510' }}>
-      <Sequence from={sceneStart(0)} durationInFrames={sceneDur}>
-        <SceneWrapper durationInFrames={sceneDur}>
-          <IntroScene data={data} />
-        </SceneWrapper>
-      </Sequence>
+    <AbsoluteFill style={{ background: '#000000' }}>
+      <AbsoluteFill style={{ background: '#050510' }}>
+        <Sequence from={sceneStart(0)} durationInFrames={sceneDur}>
+          <SceneWrapper durationInFrames={sceneDur}>
+            <IntroScene data={data} />
+          </SceneWrapper>
+        </Sequence>
 
-      <Sequence from={sceneStart(1)} durationInFrames={sceneDur}>
-        <SceneWrapper durationInFrames={sceneDur}>
-          <FeaturesScene data={data} />
-        </SceneWrapper>
-      </Sequence>
+        <Sequence from={sceneStart(1)} durationInFrames={sceneDur}>
+          <SceneWrapper durationInFrames={sceneDur}>
+            <FeaturesScene data={data} />
+          </SceneWrapper>
+        </Sequence>
 
-      <Sequence from={sceneStart(2)} durationInFrames={sceneDur}>
-        <SceneWrapper durationInFrames={sceneDur}>
-          <ScreenshotsScene data={data} />
-        </SceneWrapper>
-      </Sequence>
+        <Sequence from={sceneStart(2)} durationInFrames={sceneDur}>
+          <SceneWrapper durationInFrames={sceneDur}>
+            <ScreenshotsScene data={data} />
+          </SceneWrapper>
+        </Sequence>
 
-      <Sequence from={sceneStart(3)} durationInFrames={sceneDur}>
-        <SceneWrapper durationInFrames={sceneDur}>
-          <StatsScene data={data} />
-        </SceneWrapper>
-      </Sequence>
+        <Sequence from={sceneStart(3)} durationInFrames={sceneDur}>
+          <SceneWrapper durationInFrames={sceneDur}>
+            <StatsScene data={data} />
+          </SceneWrapper>
+        </Sequence>
 
-      <Sequence from={sceneStart(4)} durationInFrames={sceneDur}>
-        <SceneWrapper durationInFrames={sceneDur}>
-          <OutroScene data={data} />
-        </SceneWrapper>
-      </Sequence>
+        <Sequence from={sceneStart(4)} durationInFrames={sceneDur}>
+          <SceneWrapper durationInFrames={sceneDur}>
+            <OutroScene data={data} />
+          </SceneWrapper>
+        </Sequence>
+      </AbsoluteFill>
+      {/* Permanent fade-to-black at bottom/top edges — baked into the composition
+          so html2canvas captures it as part of the scene content */}
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0, height: 80,
+        background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.6) 50%, #000000 100%)',
+        pointerEvents: 'none',
+      }} />
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0, height: 10,
+        background: 'linear-gradient(to top, transparent 0%, #000000 100%)',
+        pointerEvents: 'none',
+      }} />
     </AbsoluteFill>
   );
 };

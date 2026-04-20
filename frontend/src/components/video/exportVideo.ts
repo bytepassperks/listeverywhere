@@ -38,6 +38,26 @@ export async function exportVideoToMp4(
     console.log('[Export] Hidden controls overlay to prevent capture');
   }
 
+  // Strip ALL cosmetic styles from the Player container and its ancestors during export.
+  // borderRadius, boxShadow, and transparent parent backgrounds cause html2canvas to
+  // capture edge artifacts (visible lighter strip at bottom).
+  const savedStyles: Array<{ el: HTMLElement; cssText: string }> = [];
+  const playerContainer = contentEl.parentElement;
+  if (playerContainer) {
+    savedStyles.push({ el: playerContainer, cssText: playerContainer.style.cssText });
+    playerContainer.style.borderRadius = '0';
+    playerContainer.style.boxShadow = 'none';
+    playerContainer.style.background = '#000000';
+    playerContainer.style.overflow = 'hidden';
+    const wrapperDiv = playerContainer.parentElement;
+    if (wrapperDiv) {
+      savedStyles.push({ el: wrapperDiv, cssText: wrapperDiv.style.cssText });
+      wrapperDiv.style.background = '#000000';
+      wrapperDiv.style.borderRadius = '0';
+    }
+  }
+  console.log('[Export] Stripped Player cosmetic styles for clean capture');
+
   onProgress({ phase: 'preparing', percent: 0, currentFrame: 0, totalFrames });
 
   // Pause the player for manual seeking
@@ -74,6 +94,10 @@ export async function exportVideoToMp4(
     // Restore the controls overlay after export
     if (controlsOverlay) {
       controlsOverlay.style.display = '';
+    }
+    // Restore stripped cosmetic styles
+    for (const { el, cssText } of savedStyles) {
+      el.style.cssText = cssText;
     }
   }
 }
@@ -142,7 +166,7 @@ async function exportWithWebCodecs(
       scale,
       useCORS: true,
       allowTaint: true,
-      backgroundColor: '#050510',
+      backgroundColor: '#000000',
       logging: false,
     });
 
@@ -151,7 +175,7 @@ async function exportWithWebCodecs(
     frameCanvas.width = encWidth;
     frameCanvas.height = encHeight;
     const ctx = frameCanvas.getContext('2d')!;
-    ctx.fillStyle = '#050510';
+    ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, encWidth, encHeight);
     ctx.drawImage(canvas, 0, 0, encWidth, encHeight);
     // Gradient fade to black at bottom edge so video blends seamlessly with
@@ -253,11 +277,11 @@ async function exportWithMediaRecorder(
       scale,
       useCORS: true,
       allowTaint: true,
-      backgroundColor: '#050510',
+      backgroundColor: '#000000',
       logging: false,
     });
 
-    ctx.fillStyle = '#050510';
+    ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, VIDEO_WIDTH, VIDEO_HEIGHT);
     ctx.drawImage(captured, 0, 0, VIDEO_WIDTH, VIDEO_HEIGHT);
     // Gradient fade to black at bottom edge
