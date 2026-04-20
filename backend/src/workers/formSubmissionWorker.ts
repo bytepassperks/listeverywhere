@@ -13,12 +13,12 @@ interface FormSubmissionJobData {
 
 const MAX_RETRIES = 3;
 
-async function getPlaywright() {
+async function getPuppeteer() {
   try {
-    const pw = await import('playwright');
-    return pw;
+    const puppeteer = await import('puppeteer');
+    return puppeteer.default;
   } catch {
-    throw new Error('Playwright is not installed. Install it in the workers service to use auto-form submissions.');
+    throw new Error('Puppeteer is not installed. Install it in the workers service to use auto-form submissions.');
   }
 }
 
@@ -28,7 +28,7 @@ async function fillFormField(page: any, selectors: string[], value: string): Pro
       const element = await page.$(selector);
       if (element) {
         await element.click();
-        await element.fill(value);
+        await element.type(value, { delay: 30 });
         return true;
       }
     } catch {
@@ -51,24 +51,24 @@ async function selectCategory(page: any, categories: string[]): Promise<boolean>
     try {
       const select = await page.$(selector);
       if (select) {
-        const options = await select.$$('option');
+        const options = await page.$$(`${selector} option`);
         for (const option of options) {
-          const text = await option.textContent();
+          const text = await page.evaluate((el: HTMLOptionElement) => el.textContent, option);
           if (text && categories.some((cat: string) =>
             text.toLowerCase().includes(cat.toLowerCase()) ||
             cat.toLowerCase().includes(text.toLowerCase())
           )) {
-            const value = await option.getAttribute('value');
+            const value = await page.evaluate((el: HTMLOptionElement) => el.value, option);
             if (value) {
-              await select.selectOption(value);
+              await page.select(selector, value);
               return true;
             }
           }
         }
         if (options.length > 1) {
-          const value = await options[1].getAttribute('value');
+          const value = await page.evaluate((el: HTMLOptionElement) => el.value, options[1]);
           if (value) {
-            await select.selectOption(value);
+            await page.select(selector, value);
             return true;
           }
         }
@@ -85,9 +85,9 @@ async function uploadFile(page: any, selectors: string[], fileUrl: string): Prom
     try {
       const input = await page.$(selector);
       if (input) {
-        const type = await input.getAttribute('type');
+        const type = await page.evaluate((el: HTMLInputElement) => el.type, input);
         if (type === 'file') {
-          await input.setInputFiles(fileUrl);
+          await input.uploadFile(fileUrl);
           return true;
         }
       }
@@ -161,14 +161,14 @@ async function submitForm(page: any): Promise<boolean> {
   const submitSelectors = [
     'button[type="submit"]',
     'input[type="submit"]',
-    'button:has-text("Submit")',
-    'button:has-text("submit")',
-    'button:has-text("Send")',
-    'button:has-text("Add")',
-    'button:has-text("Post")',
-    'button:has-text("Create")',
-    '[class*="submit"] button',
-    'form button:last-of-type',
+  ];
+
+  const xpathSelectors = [
+    '//button[contains(translate(., "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "submit")]',
+    '//button[contains(translate(., "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "send")]',
+    '//button[contains(translate(., "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "add")]',
+    '//button[contains(translate(., "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "post")]',
+    '//button[contains(translate(., "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "create")]',
   ];
 
   for (const selector of submitSelectors) {
@@ -176,13 +176,45 @@ async function submitForm(page: any): Promise<boolean> {
       const button = await page.$(selector);
       if (button) {
         await button.click();
-        await page.waitForTimeout(3000);
+        await new Promise(r => setTimeout(r, 3000));
         return true;
       }
     } catch {
       continue;
     }
   }
+
+  for (const xpath of xpathSelectors) {
+    try {
+      const [button] = await page.$x(xpath);
+      if (button) {
+        await button.click();
+        await new Promise(r => setTimeout(r, 3000));
+        return true;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  try {
+    const fallback = await page.$('[class*="submit"] button');
+    if (fallback) {
+      await fallback.click();
+      await new Promise(r => setTimeout(r, 3000));
+      return true;
+    }
+  } catch { /* ignore */ }
+
+  try {
+    const formButton = await page.$('form button:last-of-type');
+    if (formButton) {
+      await formButton.click();
+      await new Promise(r => setTimeout(r, 3000));
+      return true;
+    }
+  } catch { /* ignore */ }
+
   return false;
 }
 
@@ -197,29 +229,28 @@ export async function processFormSubmission(job: Job<FormSubmissionJobData>): Pr
 
     const payload = await generatePayload(companyId, directoryId);
 
-    const pw = await getPlaywright();
+    const puppeteer = await getPuppeteer();
 
-    const launchOptions: Record<string, unknown> = {
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-    };
+    const launchArgs = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'];
 
     if (isProxyEnabled()) {
       const proxy = getNextProxy();
       if (proxy) {
-        launchOptions.proxy = { server: getProxyUrl(proxy) };
+        launchArgs.push(`--proxy-server=${getProxyUrl(proxy)}`);
       }
     }
 
-    browser = await pw.chromium.launch(launchOptions);
-    const context = await browser.newContext({
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      viewport: { width: 1280, height: 800 },
+    browser = await puppeteer.launch({
+      headless: true,
+      args: launchArgs,
     });
-    const page = await context.newPage();
 
-    await page.goto(submitUrl, { waitUntil: 'networkidle', timeout: 30000 });
-    await page.waitForTimeout(2000);
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    await page.setViewport({ width: 1280, height: 800 });
+
+    await page.goto(submitUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+    await new Promise(r => setTimeout(r, 2000));
 
     const pageContent = await page.content();
     const captchaType = detectCaptchaOnPage(pageContent);
@@ -237,15 +268,15 @@ export async function processFormSubmission(job: Job<FormSubmissionJobData>): Pr
     }
 
     await fillForm(page, payload);
-    await page.waitForTimeout(1000);
+    await new Promise(r => setTimeout(r, 1000));
 
     const submitted = await submitForm(page);
 
     if (submitted) {
-      await page.waitForTimeout(3000);
+      await new Promise(r => setTimeout(r, 3000));
 
       const currentUrl = page.url();
-      const pageText = await page.textContent('body') || '';
+      const pageText = await page.evaluate(() => document.body.textContent || '');
 
       const successIndicators = ['thank', 'success', 'submitted', 'received', 'confirm', 'pending'];
       const isSuccess = successIndicators.some((ind: string) => pageText.toLowerCase().includes(ind)) ||
