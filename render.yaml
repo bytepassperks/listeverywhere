@@ -46,10 +46,10 @@ services:
 
   - type: worker
     name: listeverywhere-workers
-    runtime: docker
+    runtime: node
     plan: standard
-    dockerfilePath: ./backend/Dockerfile.workers
-    dockerContext: ./backend
+    buildCommand: cd backend && npm install --include=dev && npm run build
+    startCommand: cd backend && npm run workers
     envVars:
       - key: DATABASE_URL
         fromDatabase:

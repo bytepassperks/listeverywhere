@@ -13,14 +13,12 @@ interface FormSubmissionJobData {
 
 const MAX_RETRIES = 3;
 
-const CHROMIUM_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium';
-
 async function getPuppeteer() {
   try {
-    const puppeteer = await import('puppeteer-core');
+    const puppeteer = await import('puppeteer');
     return puppeteer.default;
   } catch {
-    throw new Error('puppeteer-core is not installed. Install it in the workers service to use auto-form submissions.');
+    throw new Error('Puppeteer is not installed. Install it in the workers service to use auto-form submissions.');
   }
 }
 
@@ -244,7 +242,6 @@ export async function processFormSubmission(job: Job<FormSubmissionJobData>): Pr
 
     browser = await puppeteer.launch({
       headless: true,
-      executablePath: CHROMIUM_PATH,
       args: launchArgs,
     });
 
