@@ -13,12 +13,16 @@ interface FormSubmissionJobData {
 
 const MAX_RETRIES = 3;
 
-async function getPuppeteer() {
+async function getPuppeteerAndChromium() {
   try {
-    const puppeteer = await import('puppeteer');
-    return puppeteer.default;
-  } catch {
-    throw new Error('Puppeteer is not installed. Install it in the workers service to use auto-form submissions.');
+    const puppeteer = await import('puppeteer-core');
+    const chromium = await import('@sparticuz/chromium');
+    const execPath = await chromium.default.executablePath();
+    console.log('[Workers] Chromium executable path:', execPath);
+    return { puppeteer: puppeteer.default, executablePath: execPath };
+  } catch (err) {
+    console.error('[Workers] Failed to load puppeteer-core or @sparticuz/chromium:', err);
+    throw new Error('puppeteer-core or @sparticuz/chromium is not installed.');
   }
 }
 
@@ -229,9 +233,10 @@ export async function processFormSubmission(job: Job<FormSubmissionJobData>): Pr
 
     const payload = await generatePayload(companyId, directoryId);
 
-    const puppeteer = await getPuppeteer();
+    console.log(`[Workers] Starting form submission for ${submitUrl} (attempt ${attemptCount})`);
+    const { puppeteer, executablePath } = await getPuppeteerAndChromium();
 
-    const launchArgs = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'];
+    const launchArgs = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process'];
 
     if (isProxyEnabled()) {
       const proxy = getNextProxy();
@@ -240,10 +245,13 @@ export async function processFormSubmission(job: Job<FormSubmissionJobData>): Pr
       }
     }
 
+    console.log(`[Workers] Launching Chromium at: ${executablePath}`);
     browser = await puppeteer.launch({
       headless: true,
+      executablePath,
       args: launchArgs,
     });
+    console.log('[Workers] Chromium launched successfully');
 
     const page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
