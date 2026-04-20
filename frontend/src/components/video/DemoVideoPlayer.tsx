@@ -1,6 +1,7 @@
 'use client';
 
-import { Player } from '@remotion/player';
+import { Player, PlayerRef } from '@remotion/player';
+import { forwardRef } from 'react';
 import { DemoVideoComposition } from './DemoVideoComposition';
 import { DemoVideoProps, VIDEO_WIDTH, VIDEO_HEIGHT, VIDEO_FPS, SCENE_DURATION_FRAMES, TRANSITION_FRAMES, TOTAL_SCENES } from './types';
 
@@ -8,15 +9,16 @@ interface DemoVideoPlayerProps {
   data: DemoVideoProps;
 }
 
-export const DemoVideoPlayer: React.FC<DemoVideoPlayerProps> = ({ data }) => {
-  const totalDuration = TOTAL_SCENES * SCENE_DURATION_FRAMES - (TOTAL_SCENES - 1) * TRANSITION_FRAMES;
+export const TOTAL_DURATION_FRAMES = TOTAL_SCENES * SCENE_DURATION_FRAMES - (TOTAL_SCENES - 1) * TRANSITION_FRAMES;
 
+export const DemoVideoPlayer = forwardRef<PlayerRef, DemoVideoPlayerProps>(({ data }, ref) => {
   return (
     <div style={{ width: '100%', maxWidth: 960 }}>
       <Player
+        ref={ref}
         component={DemoVideoComposition}
         inputProps={{ data }}
-        durationInFrames={totalDuration}
+        durationInFrames={TOTAL_DURATION_FRAMES}
         compositionWidth={VIDEO_WIDTH}
         compositionHeight={VIDEO_HEIGHT}
         fps={VIDEO_FPS}
@@ -32,4 +34,6 @@ export const DemoVideoPlayer: React.FC<DemoVideoPlayerProps> = ({ data }) => {
       />
     </div>
   );
-};
+});
+
+DemoVideoPlayer.displayName = 'DemoVideoPlayer';

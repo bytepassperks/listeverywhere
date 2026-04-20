@@ -1,10 +1,12 @@
 'use client';
 
-import { Suspense, useState, useEffect, useCallback } from 'react';
+import { Suspense, useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { PlayerRef } from '@remotion/player';
 import { api, Company, Screenshot } from '@/lib/api';
-import { DemoVideoPlayer } from '@/components/video/DemoVideoPlayer';
+import { DemoVideoPlayer, TOTAL_DURATION_FRAMES } from '@/components/video/DemoVideoPlayer';
 import { DemoVideoProps } from '@/components/video/types';
+import { exportVideoToMp4 } from '@/components/video/exportVideo';
 
 function DemoVideoContent() {
   const router = useRouter();
@@ -17,6 +19,8 @@ function DemoVideoContent() {
   const [generating, setGenerating] = useState(false);
   const [renderingVideo, setRenderingVideo] = useState(false);
   const [renderProgress, setRenderProgress] = useState(0);
+  const [renderPhase, setRenderPhase] = useState('');
+  const playerRef = useRef<PlayerRef>(null);
 
   useEffect(() => {
     api.getCompanies()
@@ -80,59 +84,27 @@ function DemoVideoContent() {
   }, [selectedCompanyId]);
 
   const handleRenderVideo = async () => {
-    if (!videoData) return;
+    if (!videoData || !playerRef.current) return;
     setRenderingVideo(true);
     setRenderProgress(0);
+    setRenderPhase('preparing');
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/demo-video/render`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${api.getToken()}`,
-          },
-          body: JSON.stringify({ companyId: selectedCompanyId }),
-        }
-      );
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: 'Render failed' }));
-        throw new Error((err as { error: string }).error || 'Render failed');
-      }
-
-      const result = await response.json() as { jobId: string };
-
-      const pollInterval = setInterval(async () => {
-        try {
-          const statusResp = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/demo-video/status/${result.jobId}`,
-            {
-              headers: { Authorization: `Bearer ${api.getToken()}` },
-            }
-          );
-          const status = await statusResp.json() as { status: string; progress: number; downloadUrl?: string };
-
-          if (status.status === 'completed' && status.downloadUrl) {
-            clearInterval(pollInterval);
+      await exportVideoToMp4(
+        playerRef.current,
+        TOTAL_DURATION_FRAMES,
+        videoData.companyName,
+        (progress) => {
+          setRenderProgress(progress.percent);
+          setRenderPhase(progress.phase);
+          if (progress.phase === 'done') {
             setRenderingVideo(false);
-            setRenderProgress(100);
-            window.open(status.downloadUrl, '_blank');
-          } else if (status.status === 'failed') {
-            clearInterval(pollInterval);
-            setRenderingVideo(false);
-            alert('Video rendering failed. Please try again.');
-          } else {
-            setRenderProgress(status.progress || 0);
           }
-        } catch {
-          clearInterval(pollInterval);
-          setRenderingVideo(false);
-        }
-      }, 2000);
+        },
+      );
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to start rendering');
+      console.error('[Download] Export failed:', err);
+      alert(err instanceof Error ? err.message : 'Failed to export video');
       setRenderingVideo(false);
     }
   };
@@ -229,13 +201,13 @@ function DemoVideoContent() {
                   style={{ background: renderingVideo ? '#666' : '#22c55e' }}
                 >
                   {renderingVideo
-                    ? `Rendering... ${renderProgress}%`
+                    ? `${renderPhase === 'capturing' ? 'Capturing' : renderPhase === 'encoding' ? 'Encoding' : 'Preparing'}... ${renderProgress}%`
                     : 'Download MP4'}
                 </button>
               </div>
             </div>
             <div className="flex justify-center">
-              <DemoVideoPlayer data={videoData} />
+              <DemoVideoPlayer ref={playerRef} data={videoData} />
             </div>
           </div>
 
