@@ -4,7 +4,6 @@ const SCREENSHOT_WIDTH = 1920;
 const SCREENSHOT_HEIGHT = 1080;
 
 function buildScreenshotUrl(pageUrl: string): string {
-  const encoded = encodeURIComponent(pageUrl);
   return `https://image.thum.io/get/width/${SCREENSHOT_WIDTH}/crop/${SCREENSHOT_HEIGHT}/noanimate/${pageUrl}`;
 }
 
@@ -26,25 +25,19 @@ export async function generateScreenshots(
     try {
       const screenshotUrl = buildScreenshotUrl(pageInfo.url);
 
-      // Verify the screenshot URL is reachable
-      const resp = await fetch(screenshotUrl, { method: 'HEAD', signal: AbortSignal.timeout(15000) });
+      // thum.io URLs are deterministic — store directly without verification
+      // (HEAD requests to thum.io time out; GET works but downloads the full image)
+      await query(
+        `DELETE FROM screenshots WHERE company_id = $1 AND type = $2`,
+        [companyId, pageInfo.type]
+      );
+      await query(
+        `INSERT INTO screenshots (company_id, type, file_url) VALUES ($1, $2, $3)`,
+        [companyId, pageInfo.type, screenshotUrl]
+      );
 
-      if (resp.ok) {
-        // Delete existing screenshot of same type, then insert
-        await query(
-          `DELETE FROM screenshots WHERE company_id = $1 AND type = $2`,
-          [companyId, pageInfo.type]
-        );
-        await query(
-          `INSERT INTO screenshots (company_id, type, file_url) VALUES ($1, $2, $3)`,
-          [companyId, pageInfo.type, screenshotUrl]
-        );
-
-        results[pageInfo.type] = screenshotUrl;
-        console.log(`Screenshot captured for ${pageInfo.type}: ${screenshotUrl}`);
-      } else {
-        console.warn(`Screenshot service returned ${resp.status} for ${pageInfo.url}`);
-      }
+      results[pageInfo.type] = screenshotUrl;
+      console.log(`Screenshot captured for ${pageInfo.type}: ${screenshotUrl}`);
     } catch (err) {
       console.warn(`Screenshot failed for ${pageInfo.type} (${pageInfo.url}):`, err instanceof Error ? err.message : err);
     }
