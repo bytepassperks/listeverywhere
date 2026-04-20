@@ -97,7 +97,7 @@ async function buildApp() {
   });
 
   // Image proxy endpoint - allows frontend to fetch cross-origin images for video export
-  app.get('/api/image-proxy', async (request, reply) => {
+  const imageProxyHandler = async (request: import('fastify').FastifyRequest, reply: import('fastify').FastifyReply) => {
     const { url } = request.query as { url?: string };
     if (!url) {
       return reply.status(400).send({ error: 'url parameter required' });
@@ -105,14 +105,23 @@ async function buildApp() {
 
     try {
       const decoded = decodeURIComponent(url);
-      const response = await fetch(decoded);
+      const isHead = request.method === 'HEAD';
+      const response = await fetch(decoded, { method: isHead ? 'HEAD' : 'GET' });
       if (!response.ok) {
         return reply.status(response.status).send({ error: 'Failed to fetch image' });
       }
 
       const contentType = response.headers.get('content-type') || 'image/png';
-      const buffer = Buffer.from(await response.arrayBuffer());
 
+      if (isHead) {
+        return reply
+          .header('Access-Control-Allow-Origin', '*')
+          .header('Cache-Control', 'public, max-age=86400')
+          .type(contentType)
+          .send();
+      }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
       return reply
         .header('Access-Control-Allow-Origin', '*')
         .header('Cache-Control', 'public, max-age=86400')
@@ -122,7 +131,9 @@ async function buildApp() {
       console.error('[Image Proxy] Error:', err);
       return reply.status(500).send({ error: 'Failed to proxy image' });
     }
-  });
+  };
+  app.get('/api/image-proxy', imageProxyHandler);
+  app.head('/api/image-proxy', imageProxyHandler);
 
   app.get('/api/health', async () => {
     return { status: 'ok', timestamp: new Date().toISOString() };

@@ -8,6 +8,44 @@ import { DemoVideoPlayer, TOTAL_DURATION_FRAMES } from '@/components/video/DemoV
 import { DemoVideoProps } from '@/components/video/types';
 import { exportVideoToMp4 } from '@/components/video/exportVideo';
 
+async function resolveLogoUrl(logoUrl: string, website: string): Promise<string> {
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://listeverywhere-api.onrender.com';
+  let hostname = '';
+  try { hostname = new URL(website).hostname; } catch { /* ignore */ }
+
+  // Try multiple logo sources in order of preference
+  const candidates: string[] = [];
+  
+  // 1. Original logo URL from database
+  if (logoUrl) candidates.push(logoUrl);
+  
+  // 2. Common logo paths on the website
+  if (hostname) {
+    candidates.push(`https://${hostname}/images/logo.png`);
+    candidates.push(`https://${hostname}/logo.png`);
+    candidates.push(`https://${hostname}/favicon.ico`);
+  }
+
+  // Try each candidate through our proxy (handles CORS + validates existence)
+  for (const url of candidates) {
+    try {
+      const proxyUrl = `${apiBase}/api/image-proxy?url=${encodeURIComponent(url)}`;
+      const resp = await fetch(proxyUrl, { method: 'HEAD' });
+      if (resp.ok) {
+        console.log(`[Logo] Resolved: ${url}`);
+        return url;
+      }
+    } catch { /* try next */ }
+  }
+
+  // Final fallback: Google Favicon API (always works, has CORS)
+  if (hostname) {
+    return `https://www.google.com/s2/favicons?domain=${hostname}&sz=128`;
+  }
+
+  return '';
+}
+
 function DemoVideoContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -51,11 +89,7 @@ function DemoVideoContent() {
         tagline: companyData.company.tagline,
         descriptionShort: companyData.company.description_short,
         descriptionLong: companyData.company.description_long,
-        logoUrl: companyData.company.logo_url || (() => {
-          try {
-            return `https://www.google.com/s2/favicons?domain=${new URL(companyData.company.website).hostname}&sz=128`;
-          } catch { return ''; }
-        })(),
+        logoUrl: await resolveLogoUrl(companyData.company.logo_url, companyData.company.website),
         website: companyData.company.website,
         categories: (companyData.company.categories as string[]) || [],
         pricingModel: companyData.company.pricing_model,
