@@ -84,7 +84,7 @@ async function processCrawlPipeline(
         profile.tagline,
         profile.short_description,
         profile.long_description,
-        profile.logo_url || meta.ogImage || `https://logo.clearbit.com/${new URL(normalizedUrl).hostname}`,
+        profile.logo_url || meta.ogImage || `https://www.google.com/s2/favicons?domain=${new URL(normalizedUrl).hostname}&sz=128`,
         JSON.stringify(profile.categories),
         JSON.stringify(profile.social_links),
         profile.pricing_model,

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, Company } from '@/lib/api';
+import { CompanyLogo } from '@/components/CompanyLogo';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -141,12 +142,7 @@ export default function DashboardPage() {
               style={{ background: 'var(--card)', borderColor: 'var(--border)' }}
             >
               <div className="flex items-start gap-4">
-                <img
-                  src={company.logo_url || (() => { try { return `https://logo.clearbit.com/${new URL(company.website).hostname}`; } catch { return ''; } })()}
-                  alt={company.name}
-                  className="w-12 h-12 rounded-lg object-cover"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                />
+                <CompanyLogo name={company.name} website={company.website} logoUrl={company.logo_url} />
                 <div className="flex-1 min-w-0">
                   <h3 className="text-lg font-semibold" style={{ color: 'var(--foreground)' }}>{company.name}</h3>
                   <p className="text-sm mt-1 truncate" style={{ color: 'var(--muted-foreground)' }}>

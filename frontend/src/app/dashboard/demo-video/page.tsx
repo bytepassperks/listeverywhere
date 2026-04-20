@@ -49,7 +49,7 @@ function DemoVideoContent() {
         descriptionLong: companyData.company.description_long,
         logoUrl: companyData.company.logo_url || (() => {
           try {
-            return `https://logo.clearbit.com/${new URL(companyData.company.website).hostname}`;
+            return `https://www.google.com/s2/favicons?domain=${new URL(companyData.company.website).hostname}&sz=128`;
           } catch { return ''; }
         })(),
         website: companyData.company.website,

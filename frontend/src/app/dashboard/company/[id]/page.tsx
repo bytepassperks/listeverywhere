@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, Company, Screenshot, Submission } from '@/lib/api';
+import { CompanyLogo } from '@/components/CompanyLogo';
 
 const STATUS_COLORS: Record<string, string> = {
   queued: '#f59e0b',
@@ -118,12 +119,7 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
 
       <div className="p-6 rounded-xl border mb-6" style={{ background: 'var(--card)', borderColor: 'var(--border)' }}>
         <div className="flex items-start gap-4">
-          <img
-            src={company.logo_url || (() => { try { return `https://logo.clearbit.com/${new URL(company.website).hostname}`; } catch { return ''; } })()}
-            alt={company.name}
-            className="w-16 h-16 rounded-lg object-cover"
-            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-          />
+          <CompanyLogo name={company.name} website={company.website} logoUrl={company.logo_url} size="lg" />
           <div className="flex-1">
             <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>{company.name}</h1>
             <p className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>{company.tagline}</p>
