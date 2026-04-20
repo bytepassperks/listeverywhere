@@ -33,6 +33,11 @@ export async function exportVideoToMp4(
   playerRef.seekTo(0);
   await sleep(200);
 
+  // Pre-convert all external images to data URIs to avoid CORS issues with html2canvas
+  console.log('[Export] Converting external images to data URIs...');
+  const imageMap = await convertImagesToDataUri(contentEl);
+  console.log(`[Export] Converted ${imageMap.size} images to data URIs`);
+
   // Get the actual rendered size of the content area
   const rect = contentEl.getBoundingClientRect();
   const captureWidth = Math.round(rect.width);
@@ -47,10 +52,10 @@ export async function exportVideoToMp4(
 
   // Use WebCodecs + mp4-muxer for proper MP4 output
   if (typeof VideoEncoder !== 'undefined') {
-    await exportWithWebCodecs(playerRef, contentEl, totalFrames, captureWidth, captureHeight, scale, companyName, onProgress);
+    await exportWithWebCodecs(playerRef, contentEl, totalFrames, captureWidth, captureHeight, scale, companyName, imageMap, onProgress);
   } else {
     // Fallback: MediaRecorder for browsers without WebCodecs
-    await exportWithMediaRecorder(playerRef, contentEl, totalFrames, captureWidth, captureHeight, scale, companyName, onProgress);
+    await exportWithMediaRecorder(playerRef, contentEl, totalFrames, captureWidth, captureHeight, scale, companyName, imageMap, onProgress);
   }
 }
 
@@ -62,6 +67,7 @@ async function exportWithWebCodecs(
   height: number,
   scale: number,
   companyName: string,
+  imageMap: Map<string, string>,
   onProgress: (progress: ExportProgress) => void,
 ): Promise<void> {
   // Output at full composition resolution
@@ -107,6 +113,10 @@ async function exportWithWebCodecs(
     playerRef.seekTo(i);
     await sleep(40); // Wait for React to render
 
+    // Swap external images to data URIs before each capture
+    swapImagesToDataUri(contentEl, imageMap);
+    await sleep(10);
+
     const canvas = await html2canvas(contentEl, {
       width,
       height,
@@ -142,6 +152,9 @@ async function exportWithWebCodecs(
     onProgress({ phase: 'capturing', percent, currentFrame: i, totalFrames });
   }
 
+  // Restore original image sources
+  restoreOriginalImages(contentEl);
+
   onProgress({ phase: 'encoding', percent: 95, currentFrame: totalFrames, totalFrames });
 
   await encoder.flush();
@@ -163,6 +176,7 @@ async function exportWithMediaRecorder(
   height: number,
   scale: number,
   companyName: string,
+  imageMap: Map<string, string>,
   onProgress: (progress: ExportProgress) => void,
 ): Promise<void> {
   const canvas = document.createElement('canvas');
@@ -195,6 +209,10 @@ async function exportWithMediaRecorder(
     playerRef.seekTo(i);
     await sleep(40);
 
+    // Swap external images to data URIs before each capture
+    swapImagesToDataUri(contentEl, imageMap);
+    await sleep(10);
+
     const captured = await html2canvas(contentEl, {
       width,
       height,
@@ -218,6 +236,9 @@ async function exportWithMediaRecorder(
     const percent = Math.round((i / totalFrames) * 100);
     onProgress({ phase: 'capturing', percent, currentFrame: i, totalFrames });
   }
+
+  // Restore original image sources
+  restoreOriginalImages(contentEl);
 
   recorder.stop();
 
@@ -243,4 +264,86 @@ function downloadBlob(blob: Blob, filename: string): void {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function convertImagesToDataUri(container: HTMLElement): Promise<Map<string, string>> {
+  const imageMap = new Map<string, string>();
+  const images = container.querySelectorAll('img');
+  
+  for (const img of Array.from(images)) {
+    const src = img.src;
+    if (!src || src.startsWith('data:') || imageMap.has(src)) continue;
+    
+    try {
+      // Use a proxy-free approach: fetch via a canvas to convert to data URI
+      const dataUri = await fetchImageAsDataUri(src);
+      if (dataUri) {
+        imageMap.set(src, dataUri);
+        console.log(`[Export] Converted image: ${src.substring(0, 60)}...`);
+      }
+    } catch (e) {
+      console.warn(`[Export] Failed to convert image: ${src}`, e);
+    }
+  }
+  
+  return imageMap;
+}
+
+async function fetchImageAsDataUri(url: string): Promise<string | null> {
+  try {
+    // Try fetching with CORS first
+    const response = await fetch(url, { mode: 'cors' });
+    const blob = await response.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    // If CORS fails, try loading via an Image element and drawing to canvas
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth || img.width;
+          canvas.height = img.naturalHeight || img.height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) { resolve(null); return; }
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        } catch {
+          resolve(null);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = url;
+      // Timeout after 5s
+      setTimeout(() => resolve(null), 5000);
+    });
+  }
+}
+
+function swapImagesToDataUri(container: HTMLElement, imageMap: Map<string, string>): void {
+  const images = container.querySelectorAll('img');
+  for (const img of Array.from(images)) {
+    const dataUri = imageMap.get(img.src);
+    if (dataUri && !img.src.startsWith('data:')) {
+      img.setAttribute('data-original-src', img.src);
+      img.src = dataUri;
+    }
+  }
+}
+
+function restoreOriginalImages(container: HTMLElement): void {
+  const images = container.querySelectorAll<HTMLImageElement>('img[data-original-src]');
+  for (const img of Array.from(images)) {
+    const originalSrc = img.getAttribute('data-original-src');
+    if (originalSrc) {
+      img.src = originalSrc;
+      img.removeAttribute('data-original-src');
+    }
+  }
 }
