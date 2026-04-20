@@ -177,12 +177,10 @@ export const ScreenshotsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) =
             borderRadius: 16,
             overflow: 'hidden',
             background: 'rgba(15, 15, 30, 0.95)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
+            border: '1px solid rgba(255, 255, 255, 0.04)',
             boxShadow: `
               0 40px 80px rgba(0, 0, 0, 0.6),
-              0 0 0 1px rgba(255, 255, 255, 0.05),
-              0 0 80px rgba(99, 102, 241, 0.1),
-              inset 0 1px 0 rgba(255,255,255,0.03)
+              0 0 80px rgba(99, 102, 241, 0.1)
             `,
           }}
         >
@@ -270,6 +268,18 @@ export const ScreenshotsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) =
                     objectFit: 'cover',
                     objectPosition: 'top center',
                     opacity: screenshotOpacity,
+                  }}
+                />
+                {/* Bottom fade to hide white edge from screenshots */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: 40,
+                    background: 'linear-gradient(transparent, #0a0a1a)',
+                    zIndex: 2,
                   }}
                 />
                 {/* Scan line effect over real screenshot */}
