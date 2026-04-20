@@ -146,14 +146,22 @@ async function exportWithWebCodecs(
       logging: false,
     });
 
-    // Scale captured canvas to exact output resolution
+    // Scale captured canvas to exact output resolution, cropping bottom edge
+    // artifact from html2canvas container boundary rendering
     const frameCanvas = document.createElement('canvas');
     frameCanvas.width = encWidth;
     frameCanvas.height = encHeight;
     const ctx = frameCanvas.getContext('2d')!;
     ctx.fillStyle = '#050510';
     ctx.fillRect(0, 0, encWidth, encHeight);
-    ctx.drawImage(canvas, 0, 0, encWidth, encHeight);
+    // Crop 4px from the bottom of the source canvas to remove edge artifact,
+    // then scale the remaining area to fill the full output resolution
+    const cropBottom = 4 * scale;
+    ctx.drawImage(
+      canvas,
+      0, 0, canvas.width, canvas.height - cropBottom,  // source: crop bottom edge
+      0, 0, encWidth, encHeight,                        // dest: fill full frame
+    );
 
     // Each captured frame represents 2 actual frames (frameStep=2)
     // So timestamp spacing should account for this
@@ -242,8 +250,15 @@ async function exportWithMediaRecorder(
       logging: false,
     });
 
-    ctx.clearRect(0, 0, VIDEO_WIDTH, VIDEO_HEIGHT);
-    ctx.drawImage(captured, 0, 0, VIDEO_WIDTH, VIDEO_HEIGHT);
+    ctx.fillStyle = '#050510';
+    ctx.fillRect(0, 0, VIDEO_WIDTH, VIDEO_HEIGHT);
+    // Crop 4px from the bottom of the source canvas to remove edge artifact
+    const cropBottom = 4 * scale;
+    ctx.drawImage(
+      captured,
+      0, 0, captured.width, captured.height - cropBottom,
+      0, 0, VIDEO_WIDTH, VIDEO_HEIGHT,
+    );
 
     if ('requestFrame' in track) {
       track.requestFrame();
