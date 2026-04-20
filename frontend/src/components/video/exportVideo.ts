@@ -290,40 +290,51 @@ async function convertImagesToDataUri(container: HTMLElement): Promise<Map<strin
 }
 
 async function fetchImageAsDataUri(url: string): Promise<string | null> {
+  // Determine API base URL for the image proxy
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://listeverywhere-api.onrender.com';
+  
+  // Strategy 1: Try direct CORS fetch
   try {
-    // Try fetching with CORS first
     const response = await fetch(url, { mode: 'cors' });
-    const blob = await response.blob();
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
-    });
+    if (response.ok) {
+      const blob = await response.blob();
+      const dataUri = await blobToDataUri(blob);
+      if (dataUri) {
+        console.log(`[Export] Direct CORS fetch succeeded for: ${url.substring(0, 50)}`);
+        return dataUri;
+      }
+    }
   } catch {
-    // If CORS fails, try loading via an Image element and drawing to canvas
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width = img.naturalWidth || img.width;
-          canvas.height = img.naturalHeight || img.height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) { resolve(null); return; }
-          ctx.drawImage(img, 0, 0);
-          resolve(canvas.toDataURL('image/png'));
-        } catch {
-          resolve(null);
-        }
-      };
-      img.onerror = () => resolve(null);
-      img.src = url;
-      // Timeout after 5s
-      setTimeout(() => resolve(null), 5000);
-    });
+    // Direct CORS failed, try proxy
   }
+
+  // Strategy 2: Use our backend API as an image proxy
+  try {
+    const proxyUrl = `${apiBase}/api/image-proxy?url=${encodeURIComponent(url)}`;
+    console.log(`[Export] Using API proxy for: ${url.substring(0, 50)}`);
+    const response = await fetch(proxyUrl);
+    if (response.ok) {
+      const blob = await response.blob();
+      const dataUri = await blobToDataUri(blob);
+      if (dataUri) {
+        console.log(`[Export] API proxy fetch succeeded`);
+        return dataUri;
+      }
+    }
+  } catch (e) {
+    console.warn(`[Export] API proxy failed for: ${url}`, e);
+  }
+
+  return null;
+}
+
+function blobToDataUri(blob: Blob): Promise<string | null> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(blob);
+  });
 }
 
 function swapImagesToDataUri(container: HTMLElement, imageMap: Map<string, string>): void {
