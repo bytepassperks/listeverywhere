@@ -2,7 +2,7 @@ import { Job } from 'bullmq';
 import { updateSubmissionStatus } from '../services/statusTracker';
 import { generatePayload } from '../services/payloadGenerator';
 import { generateManualKit } from '../services/manualKitGenerator';
-import { query } from '../db/pool';
+import { query, queryOne } from '../db/pool';
 
 interface ManualKitJobData {
   submissionId: string;
@@ -15,7 +15,25 @@ export async function processManualKit(job: Job<ManualKitJobData>): Promise<void
 
   try {
     const payload = await generatePayload(companyId, directoryId);
-    const kit = generateManualKit(payload);
+
+    const dir = await queryOne<{
+      title_limit: number | null;
+      desc_limit: number | null;
+      requires_logo: boolean;
+      requires_screenshot: boolean;
+      requires_category: boolean;
+    }>('SELECT title_limit, desc_limit, requires_logo, requires_screenshot, requires_category FROM directories WHERE id = $1', [directoryId]);
+
+    const requirements = {
+      title_limit: dir?.title_limit ?? null,
+      desc_limit: dir?.desc_limit ?? null,
+      requires_logo: dir?.requires_logo ?? false,
+      requires_screenshot: dir?.requires_screenshot ?? false,
+      requires_category: dir?.requires_category ?? false,
+    };
+
+    const apiBaseUrl = process.env.API_BASE_URL || 'https://listeverywhere-api.onrender.com';
+    const kit = generateManualKit(payload, requirements, apiBaseUrl);
 
     await query(
       `UPDATE submissions

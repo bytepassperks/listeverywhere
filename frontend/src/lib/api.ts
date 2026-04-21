@@ -233,6 +233,22 @@ export interface SubmissionPayload {
   submission_type: string;
 }
 
+export interface FormField {
+  field_name: string;
+  value: string;
+  required: boolean;
+  char_limit: number | null;
+  copy_ready: boolean;
+}
+
+export interface DirectoryRequirements {
+  title_limit: number | null;
+  desc_limit: number | null;
+  requires_logo: boolean;
+  requires_screenshot: boolean;
+  requires_category: boolean;
+}
+
 export interface ManualKit {
   directory_name: string;
   submit_url: string;
@@ -244,10 +260,14 @@ export interface ManualKit {
   website: string;
   email: string;
   logo_url: string;
+  logo_download_url: string;
   screenshots: string[];
+  screenshot_download_urls: string[];
   social_links: Record<string, string>;
   pricing_model: string;
   instructions: string[];
+  directory_requirements: DirectoryRequirements;
+  form_fields: FormField[];
 }
 
 export interface EmailKit {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, Company, Screenshot, Submission } from '@/lib/api';
+import { api, Company, Screenshot, Submission, FormField, DirectoryRequirements } from '@/lib/api';
 import { CompanyLogo } from '@/components/CompanyLogo';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -258,44 +258,139 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
               <button onClick={() => setActiveKit(null)} className="text-xl" style={{ color: 'var(--muted-foreground)' }}>&times;</button>
             </div>
 
-            {activeKit.type === 'manual' && (
-              <div className="space-y-3">
-                {(['title', 'tagline', 'description', 'description_long', 'website', 'email'] as const).map((field) => {
-                  const val = String(activeKit.data[field] || '');
-                  if (!val) return null;
-                  return (
-                    <div key={field}>
-                      <label className="text-xs font-medium uppercase" style={{ color: 'var(--muted-foreground)' }}>{field}</label>
-                      <div className="flex items-start gap-2 mt-1">
-                        <div className="flex-1 p-2 rounded text-sm border" style={{ borderColor: 'var(--border)', background: 'var(--background)', color: 'var(--foreground)' }}>
-                          {val}
-                        </div>
-                        <button onClick={() => copyToClipboard(val)}
-                          className="px-2 py-1 text-xs rounded border shrink-0"
-                          style={{ borderColor: 'var(--border)', color: 'var(--primary)' }}>
-                          Copy
-                        </button>
-                      </div>
+            {activeKit.type === 'manual' && (() => {
+              const kit = activeKit.data as unknown as import('@/lib/api').ManualKit;
+              return (
+              <div className="space-y-4">
+                {kit.directory_requirements && (
+                  <div className="p-3 rounded-lg border text-xs" style={{ background: 'var(--secondary)', borderColor: 'var(--border)' }}>
+                    <div className="font-semibold mb-2" style={{ color: 'var(--foreground)' }}>
+                      {kit.directory_name} — Form Requirements
                     </div>
-                  );
-                })}
-                {Array.isArray(activeKit.data.instructions) && (
+                    <div className="flex flex-wrap gap-3" style={{ color: 'var(--muted-foreground)' }}>
+                      {kit.directory_requirements.title_limit && (
+                        <span>Title: max {kit.directory_requirements.title_limit} chars</span>
+                      )}
+                      {kit.directory_requirements.desc_limit && (
+                        <span>Description: max {kit.directory_requirements.desc_limit} chars</span>
+                      )}
+                      <span style={{ color: kit.directory_requirements.requires_logo ? '#22c55e' : 'var(--muted-foreground)' }}>
+                        Logo: {kit.directory_requirements.requires_logo ? 'Required' : 'Optional'}
+                      </span>
+                      <span style={{ color: kit.directory_requirements.requires_screenshot ? '#22c55e' : 'var(--muted-foreground)' }}>
+                        Screenshot: {kit.directory_requirements.requires_screenshot ? 'Required' : 'Optional'}
+                      </span>
+                      <span style={{ color: kit.directory_requirements.requires_category ? '#22c55e' : 'var(--muted-foreground)' }}>
+                        Category: {kit.directory_requirements.requires_category ? 'Required' : 'Optional'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Form Fields — each with copy button and char count */}
+                {kit.form_fields && kit.form_fields.map((field: FormField, i: number) => (
+                  <div key={i}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <label className="text-xs font-medium uppercase" style={{ color: 'var(--muted-foreground)' }}>
+                        {field.field_name}
+                      </label>
+                      {field.required && (
+                        <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#ef4444', color: 'white' }}>Required</span>
+                      )}
+                      {field.char_limit && (
+                        <span className="text-xs" style={{ color: field.value.length > field.char_limit ? '#ef4444' : 'var(--muted-foreground)' }}>
+                          {field.value.length}/{field.char_limit}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 p-2 rounded text-sm border" style={{ borderColor: 'var(--border)', background: 'var(--background)', color: 'var(--foreground)' }}>
+                        {field.value}
+                      </div>
+                      <button onClick={() => copyToClipboard(field.value)}
+                        className="px-2 py-1 text-xs rounded border shrink-0"
+                        style={{ borderColor: 'var(--border)', color: 'var(--primary)' }}>
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Logo Download */}
+                {kit.logo_download_url && (
+                  <div className="p-3 rounded-lg border" style={{ borderColor: 'var(--border)', background: 'var(--background)' }}>
+                    <label className="text-xs font-medium uppercase mb-2 block" style={{ color: 'var(--muted-foreground)' }}>
+                      Logo {kit.directory_requirements?.requires_logo ? '(Required)' : '(Optional)'}
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={kit.logo_download_url}
+                        alt="Logo"
+                        className="w-16 h-16 rounded-lg object-contain border"
+                        style={{ borderColor: 'var(--border)', background: '#fff' }}
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                      <a
+                        href={kit.logo_download_url}
+                        download={`${(kit.directory_name || 'logo').replace(/\s+/g, '-').toLowerCase()}-logo.png`}
+                        className="px-3 py-2 rounded-lg text-xs font-medium text-white inline-flex items-center gap-1"
+                        style={{ background: '#6366f1' }}
+                      >
+                        Download Logo PNG
+                      </a>
+                      <button onClick={() => copyToClipboard(kit.logo_url)}
+                        className="px-2 py-1 text-xs rounded border"
+                        style={{ borderColor: 'var(--border)', color: 'var(--primary)' }}>
+                        Copy URL
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Screenshot Downloads */}
+                {kit.screenshot_download_urls && kit.screenshot_download_urls.length > 0 && (
+                  <div className="p-3 rounded-lg border" style={{ borderColor: 'var(--border)', background: 'var(--background)' }}>
+                    <label className="text-xs font-medium uppercase mb-2 block" style={{ color: 'var(--muted-foreground)' }}>
+                      Screenshots {kit.directory_requirements?.requires_screenshot ? '(Required)' : '(Optional)'}
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {kit.screenshot_download_urls.map((url: string, idx: number) => (
+                        <div key={idx} className="rounded-lg border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+                          <img src={url} alt={`Screenshot ${idx + 1}`} className="w-full h-24 object-cover" />
+                          <a
+                            href={url}
+                            download={`screenshot-${idx + 1}.png`}
+                            className="block text-center py-1 text-xs font-medium"
+                            style={{ background: 'var(--secondary)', color: 'var(--primary)' }}
+                          >
+                            Download
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Step-by-step Instructions */}
+                {kit.instructions && kit.instructions.length > 0 && (
                   <div>
-                    <label className="text-xs font-medium uppercase" style={{ color: 'var(--muted-foreground)' }}>Steps</label>
+                    <label className="text-xs font-medium uppercase" style={{ color: 'var(--muted-foreground)' }}>Step-by-step Instructions</label>
                     <ol className="list-decimal list-inside space-y-1 mt-1 text-sm" style={{ color: 'var(--foreground)' }}>
-                      {(activeKit.data.instructions as string[]).map((step: string, i: number) => (
+                      {kit.instructions.map((step: string, i: number) => (
                         <li key={i}>{step}</li>
                       ))}
                     </ol>
                   </div>
                 )}
-                <a href={String(activeKit.data.submit_url)} target="_blank" rel="noopener noreferrer"
+
+                <a href={kit.submit_url} target="_blank" rel="noopener noreferrer"
                   className="block text-center py-2 rounded-lg font-semibold text-white text-sm mt-4"
                   style={{ background: 'var(--primary)' }}>
-                  Open Submission Page
+                  Open Submission Page &rarr;
                 </a>
               </div>
-            )}
+              );
+            })()}
 
             {activeKit.type === 'email' && (
               <div className="space-y-3">
