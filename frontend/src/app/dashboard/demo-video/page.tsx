@@ -278,11 +278,11 @@ function DemoVideoContent() {
 
             {/* After export: fully custom dark video player — no native Chrome controls */}
             {exportedVideoUrl ? (
-              <div className="flex justify-center">
+              <div className="flex justify-center" style={{ background: '#000000', borderRadius: 12, overflow: 'hidden' }}>
                 <DarkVideoPlayer src={exportedVideoUrl} />
               </div>
             ) : (
-              <div className="flex justify-center">
+              <div className="flex justify-center" style={{ background: '#000000', borderRadius: 12, overflow: 'hidden' }}>
                 <DemoVideoPlayer ref={playerRef} data={videoData} />
               </div>
             )}

@@ -13,16 +13,27 @@ export const TOTAL_DURATION_FRAMES = TOTAL_SCENES * SCENE_DURATION_FRAMES - (TOT
 
 export const DemoVideoPlayer = forwardRef<PlayerRef, DemoVideoPlayerProps>(({ data }, ref) => {
   return (
-    <div className="demo-video-player-wrapper" style={{ width: '100%', maxWidth: 960 }}>
+    <div className="demo-video-player-wrapper" style={{ width: '100%', maxWidth: 960, background: '#000000', borderRadius: 12, overflow: 'hidden' }}>
       <style>{`
-        /* Make Remotion Player control bar fully opaque dark background
-           so there is no semi-transparent lighter strip at the bottom */
-        .demo-video-player-wrapper div[style*="position: absolute"][style*="bottom: 0px"] {
-          background: rgba(5, 5, 16, 0.97) !important;
+        /* Force ALL elements inside the Remotion Player controls area to have dark backgrounds.
+           The controls panel is an absolutely-positioned div at the bottom of the player.
+           Without this, the semi-transparent gradient lets the white card background bleed through. */
+        .demo-video-player-wrapper div[style*="box-sizing: border-box"][style*="position: absolute"][style*="bottom: 0"] {
+          background: linear-gradient(rgba(0,0,0,0) 0%, rgba(0,0,0,0.9) 30%, rgba(0,0,0,0.98) 100%) !important;
         }
-        /* Fallback: target any child container near the bottom that acts as controls */
-        .demo-video-player-wrapper > div > div:last-child {
+        /* Seek bar track — make it dark instead of light */
+        .demo-video-player-wrapper div[style*="touch-action: none"] {
           background: transparent !important;
+        }
+        .demo-video-player-wrapper div[style*="touch-action: none"] > div {
+          background: rgba(255,255,255,0.15) !important;
+        }
+        .demo-video-player-wrapper div[style*="touch-action: none"] > div > div {
+          background: rgba(139,92,246,0.8) !important;
+        }
+        /* Ensure the player container itself has black bg so rounded corners don't leak white */
+        .demo-video-player-wrapper > div {
+          background: #000000 !important;
         }
       `}</style>
       <Player
@@ -37,7 +48,7 @@ export const DemoVideoPlayer = forwardRef<PlayerRef, DemoVideoPlayerProps>(({ da
           width: '100%',
           borderRadius: 12,
           overflow: 'hidden',
-          boxShadow: '0 24px 80px rgba(0, 0, 0, 0.5)',
+          background: '#000000',
         }}
         controls
         autoPlay
