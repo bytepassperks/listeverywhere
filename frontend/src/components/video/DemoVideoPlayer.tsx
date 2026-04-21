@@ -13,7 +13,18 @@ export const TOTAL_DURATION_FRAMES = TOTAL_SCENES * SCENE_DURATION_FRAMES - (TOT
 
 export const DemoVideoPlayer = forwardRef<PlayerRef, DemoVideoPlayerProps>(({ data }, ref) => {
   return (
-    <div style={{ width: '100%', maxWidth: 960 }}>
+    <div className="demo-video-player-wrapper" style={{ width: '100%', maxWidth: 960 }}>
+      <style>{`
+        /* Make Remotion Player control bar fully opaque dark background
+           so there is no semi-transparent lighter strip at the bottom */
+        .demo-video-player-wrapper div[style*="position: absolute"][style*="bottom: 0px"] {
+          background: rgba(5, 5, 16, 0.97) !important;
+        }
+        /* Fallback: target any child container near the bottom that acts as controls */
+        .demo-video-player-wrapper > div > div:last-child {
+          background: transparent !important;
+        }
+      `}</style>
       <Player
         ref={ref}
         component={DemoVideoComposition}
@@ -24,9 +35,9 @@ export const DemoVideoPlayer = forwardRef<PlayerRef, DemoVideoPlayerProps>(({ da
         fps={VIDEO_FPS}
         style={{
           width: '100%',
-          borderRadius: 16,
+          borderRadius: 12,
           overflow: 'hidden',
-          boxShadow: '0 24px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05)',
+          boxShadow: '0 24px 80px rgba(0, 0, 0, 0.5)',
         }}
         controls
         autoPlay
