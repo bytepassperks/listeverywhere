@@ -1,5 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { query, queryOne } from '../db/pool';
+import * as fs from 'fs';
+import * as path from 'path';
 
 interface DirectoryRow {
   id: string;
@@ -63,5 +65,70 @@ export async function directoryRoutes(app: FastifyInstance): Promise<void> {
     };
 
     return reply.send({ directories: stats, byType, total: stats.length });
+  });
+
+  // Seed 10K+ directories endpoint (POST /api/directories/seed-10k)
+  app.post('/api/directories/seed-10k', async (_request, reply) => {
+    const seedPath = path.resolve(__dirname, '../../seed/directories_10k.json');
+    if (!fs.existsSync(seedPath)) {
+      return reply.status(404).send({ error: 'Seed file not found' });
+    }
+
+    const raw = fs.readFileSync(seedPath, 'utf-8');
+    const directories: any[] = JSON.parse(raw);
+
+    // Ensure unique constraint exists
+    await query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'directories_name_unique'
+        ) THEN
+          ALTER TABLE directories ADD CONSTRAINT directories_name_unique UNIQUE (name);
+        END IF;
+      END $$;
+    `);
+
+    let inserted = 0;
+    let skipped = 0;
+
+    for (const dir of directories) {
+      try {
+        const result = await query(
+          `INSERT INTO directories (
+             name, submit_url, submission_type, title_limit, desc_limit,
+             requires_logo, requires_screenshot, requires_category,
+             category_taxonomy, notes, active
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)
+           ON CONFLICT (name) DO NOTHING`,
+          [
+            dir.name,
+            dir.submit_url,
+            dir.submission_type,
+            dir.title_limit || 100,
+            dir.desc_limit || 500,
+            dir.requires_logo || false,
+            dir.requires_screenshot || false,
+            dir.requires_category || false,
+            JSON.stringify(dir.category_taxonomy || []),
+            dir.notes || '',
+          ]
+        );
+        if (result.rowCount && result.rowCount > 0) {
+          inserted++;
+        } else {
+          skipped++;
+        }
+      } catch {
+        skipped++;
+      }
+    }
+
+    const final = await queryOne<{ count: string }>('SELECT COUNT(*) as count FROM directories');
+    return reply.send({
+      message: `Seed complete. ${inserted} inserted, ${skipped} skipped.`,
+      inserted,
+      skipped,
+      total_in_db: parseInt(final?.count || '0', 10),
+    });
   });
 }
