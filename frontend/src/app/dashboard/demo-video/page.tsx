@@ -6,7 +6,7 @@ import { PlayerRef } from '@remotion/player';
 import { api, Company, Screenshot } from '@/lib/api';
 import { DemoVideoPlayer, TOTAL_DURATION_FRAMES } from '@/components/video/DemoVideoPlayer';
 import { DemoVideoProps } from '@/components/video/types';
-import { exportVideoToMp4 } from '@/components/video/exportVideo';
+import { exportVideoToMp4, downloadFromBlobUrl } from '@/components/video/exportVideo';
 
 async function resolveLogoUrl(logoUrl: string, website: string): Promise<string> {
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://listeverywhere-api.onrender.com';
@@ -58,6 +58,7 @@ function DemoVideoContent() {
   const [renderingVideo, setRenderingVideo] = useState(false);
   const [renderProgress, setRenderProgress] = useState(0);
   const [renderPhase, setRenderPhase] = useState('');
+  const [exportedVideoUrl, setExportedVideoUrl] = useState<string | null>(null);
   const playerRef = useRef<PlayerRef>(null);
 
   useEffect(() => {
@@ -122,9 +123,10 @@ function DemoVideoContent() {
     setRenderingVideo(true);
     setRenderProgress(0);
     setRenderPhase('preparing');
+    setExportedVideoUrl(null);
 
     try {
-      await exportVideoToMp4(
+      const blobUrl = await exportVideoToMp4(
         playerRef.current,
         TOTAL_DURATION_FRAMES,
         videoData.companyName,
@@ -136,11 +138,17 @@ function DemoVideoContent() {
           }
         },
       );
+      setExportedVideoUrl(blobUrl);
     } catch (err) {
       console.error('[Download] Export failed:', err);
       alert(err instanceof Error ? err.message : 'Failed to export video');
       setRenderingVideo(false);
     }
+  };
+
+  const handleDownloadFile = () => {
+    if (!exportedVideoUrl || !videoData) return;
+    downloadFromBlobUrl(exportedVideoUrl, `${videoData.companyName.replace(/\s+/g, '-').toLowerCase()}-demo.mp4`);
   };
 
   if (loading) {
@@ -188,6 +196,7 @@ function DemoVideoContent() {
               onChange={(e) => {
                 setSelectedCompanyId(e.target.value);
                 setVideoData(null);
+                setExportedVideoUrl(null);
               }}
               className="w-full px-4 py-2.5 rounded-lg text-sm"
               style={{
@@ -225,9 +234,18 @@ function DemoVideoContent() {
           >
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold" style={{ color: 'var(--foreground)' }}>
-                Video Preview
+                {exportedVideoUrl ? 'Exported Video' : 'Video Preview'}
               </h2>
               <div className="flex gap-3">
+                {exportedVideoUrl && (
+                  <button
+                    onClick={handleDownloadFile}
+                    className="px-6 py-2.5 rounded-lg text-sm font-medium text-white"
+                    style={{ background: '#3b82f6' }}
+                  >
+                    Save to Disk
+                  </button>
+                )}
                 <button
                   onClick={handleRenderVideo}
                   disabled={renderingVideo}
@@ -236,13 +254,55 @@ function DemoVideoContent() {
                 >
                   {renderingVideo
                     ? `${renderPhase === 'capturing' ? 'Capturing' : renderPhase === 'encoding' ? 'Encoding' : 'Preparing'}... ${renderProgress}%`
-                    : 'Download MP4'}
+                    : exportedVideoUrl ? 'Re-export MP4' : 'Export MP4'}
                 </button>
               </div>
             </div>
-            <div className="flex justify-center">
-              <DemoVideoPlayer ref={playerRef} data={videoData} />
-            </div>
+
+            {/* After export: show custom dark-themed video player with no bright seek bar */}
+            {exportedVideoUrl ? (
+              <div className="flex justify-center">
+                <div style={{ width: '100%', maxWidth: 960 }}>
+                  <style>{`
+                    .dark-video-player::-webkit-media-controls-panel {
+                      background: rgba(5, 5, 16, 0.95) !important;
+                    }
+                    .dark-video-player::-webkit-media-controls-timeline {
+                      background: rgba(255, 255, 255, 0.08) !important;
+                      border-radius: 2px !important;
+                      height: 3px !important;
+                    }
+                    .dark-video-player::-webkit-media-controls-current-time-display,
+                    .dark-video-player::-webkit-media-controls-time-remaining-display {
+                      color: rgba(255, 255, 255, 0.6) !important;
+                    }
+                    .dark-video-player::-webkit-media-controls-volume-slider {
+                      background: rgba(255, 255, 255, 0.1) !important;
+                    }
+                    .dark-video-player::-webkit-media-controls-play-button,
+                    .dark-video-player::-webkit-media-controls-mute-button,
+                    .dark-video-player::-webkit-media-controls-fullscreen-button {
+                      filter: brightness(0.7) !important;
+                    }
+                  `}</style>
+                  <video
+                    className="dark-video-player"
+                    src={exportedVideoUrl}
+                    controls
+                    autoPlay
+                    style={{
+                      width: '100%',
+                      borderRadius: 12,
+                      background: '#050510',
+                    }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="flex justify-center">
+                <DemoVideoPlayer ref={playerRef} data={videoData} />
+              </div>
+            )}
           </div>
 
           <div

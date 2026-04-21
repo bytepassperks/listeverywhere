@@ -17,7 +17,7 @@ export async function exportVideoToMp4(
   totalFrames: number,
   companyName: string,
   onProgress: (progress: ExportProgress) => void,
-): Promise<void> {
+): Promise<string> {
   const container = playerRef.getContainerNode();
   if (!container) throw new Error('Player container not found');
 
@@ -83,12 +83,13 @@ export async function exportVideoToMp4(
   console.log(`[Export] Capture size: ${captureWidth}x${captureHeight}, Output: ${VIDEO_WIDTH}x${VIDEO_HEIGHT}, Scale: ${scale.toFixed(2)}`);
 
   // Use WebCodecs + mp4-muxer for proper MP4 output
+  let blobUrl: string;
   try {
     if (typeof VideoEncoder !== 'undefined') {
-      await exportWithWebCodecs(playerRef, contentEl, totalFrames, captureWidth, captureHeight, scale, companyName, imageMap, onProgress);
+      blobUrl = await exportWithWebCodecs(playerRef, contentEl, totalFrames, captureWidth, captureHeight, scale, companyName, imageMap, onProgress);
     } else {
       // Fallback: MediaRecorder for browsers without WebCodecs
-      await exportWithMediaRecorder(playerRef, contentEl, totalFrames, captureWidth, captureHeight, scale, companyName, imageMap, onProgress);
+      blobUrl = await exportWithMediaRecorder(playerRef, contentEl, totalFrames, captureWidth, captureHeight, scale, companyName, imageMap, onProgress);
     }
   } finally {
     // Restore the controls overlay after export
@@ -100,6 +101,7 @@ export async function exportVideoToMp4(
       el.style.cssText = cssText;
     }
   }
+  return blobUrl!;
 }
 
 async function exportWithWebCodecs(
@@ -112,7 +114,7 @@ async function exportWithWebCodecs(
   companyName: string,
   imageMap: Map<string, string>,
   onProgress: (progress: ExportProgress) => void,
-): Promise<void> {
+): Promise<string> {
   // Output at full composition resolution
   const outWidth = VIDEO_WIDTH;
   const outHeight = VIDEO_HEIGHT;
@@ -207,8 +209,9 @@ async function exportWithWebCodecs(
   const buffer = (muxer.target as ArrayBufferTarget).buffer;
   const blob = new Blob([buffer], { type: 'video/mp4' });
 
-  downloadBlob(blob, `${companyName.replace(/\s+/g, '-').toLowerCase()}-demo.mp4`);
+  const blobUrl = URL.createObjectURL(blob);
   onProgress({ phase: 'done', percent: 100, currentFrame: totalFrames, totalFrames });
+  return blobUrl;
 }
 
 async function exportWithMediaRecorder(
@@ -221,7 +224,7 @@ async function exportWithMediaRecorder(
   companyName: string,
   imageMap: Map<string, string>,
   onProgress: (progress: ExportProgress) => void,
-): Promise<void> {
+): Promise<string> {
   const canvas = document.createElement('canvas');
   canvas.width = VIDEO_WIDTH;
   canvas.height = VIDEO_HEIGHT;
@@ -291,8 +294,18 @@ async function exportWithMediaRecorder(
   });
 
   const blob = new Blob(chunks, { type: mimeType });
-  downloadBlob(blob, `${companyName.replace(/\s+/g, '-').toLowerCase()}-demo.webm`);
+  const blobUrl = URL.createObjectURL(blob);
   onProgress({ phase: 'done', percent: 100, currentFrame: totalFrames, totalFrames });
+  return blobUrl;
+}
+
+export function downloadFromBlobUrl(blobUrl: string, filename: string): void {
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 function downloadBlob(blob: Blob, filename: string): void {
