@@ -24,12 +24,15 @@ async function resolveLogoUrl(logoUrl: string, website: string): Promise<string>
     if (!isScreenshot) candidates.push(logoUrl);
   }
   
-  // 2. Common logo paths on the website
+  // 2. Common logo paths on the website (prioritize larger/better formats)
   if (hostname) {
-    candidates.push(`https://${hostname}/images/logo.png`);
     candidates.push(`https://${hostname}/logo.png`);
+    candidates.push(`https://${hostname}/images/logo.png`);
     candidates.push(`https://${hostname}/logo.svg`);
+    candidates.push(`https://${hostname}/assets/logo.png`);
+    candidates.push(`https://${hostname}/img/logo.png`);
     candidates.push(`https://${hostname}/favicon.png`);
+    candidates.push(`https://${hostname}/apple-touch-icon.png`);
     candidates.push(`https://${hostname}/favicon.ico`);
   }
 
@@ -39,15 +42,22 @@ async function resolveLogoUrl(logoUrl: string, website: string): Promise<string>
       const proxyUrl = `${apiBase}/api/image-proxy?url=${encodeURIComponent(url)}`;
       const resp = await fetch(proxyUrl, { method: 'HEAD' });
       if (resp.ok) {
-        console.log(`[Logo] Resolved: ${url}`);
-        return url;
+        const contentType = resp.headers.get('content-type') || '';
+        // Make sure it's actually an image and has reasonable size
+        if (contentType.startsWith('image/')) {
+          console.log(`[Logo] Resolved via proxy: ${url}`);
+          // Return the PROXY URL so the browser can fetch it without CORS issues
+          return proxyUrl;
+        }
       }
     } catch { /* try next */ }
   }
 
-  // Final fallback: Google Favicon API (always works, has CORS)
+  // Final fallback: Google Favicon API (always works, has CORS, decent size at 128px)
   if (hostname) {
-    return `https://www.google.com/s2/favicons?domain=${hostname}&sz=128`;
+    const faviconUrl = `https://www.google.com/s2/favicons?domain=${hostname}&sz=128`;
+    console.log(`[Logo] Falling back to Google Favicon: ${faviconUrl}`);
+    return faviconUrl;
   }
 
   return '';

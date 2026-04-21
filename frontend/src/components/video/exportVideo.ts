@@ -177,9 +177,13 @@ async function exportWithWebCodecs(
     frameCanvas.width = encWidth;
     frameCanvas.height = encHeight;
     const ctx = frameCanvas.getContext('2d')!;
-    ctx.fillStyle = '#050510';
+    ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, encWidth, encHeight);
     ctx.drawImage(canvas, 0, 0, encWidth, encHeight);
+
+    // Paint a solid black strip at the very bottom to eliminate any subpixel edge artifacts
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, encHeight - 4, encWidth, 4);
 
     // Each captured frame represents 2 actual frames (frameStep=2)
     // So timestamp spacing should account for this
@@ -269,9 +273,13 @@ async function exportWithMediaRecorder(
       logging: false,
     });
 
-    ctx.fillStyle = '#050510';
+    ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, VIDEO_WIDTH, VIDEO_HEIGHT);
     ctx.drawImage(captured, 0, 0, VIDEO_WIDTH, VIDEO_HEIGHT);
+
+    // Paint a solid black strip at the very bottom to eliminate any subpixel edge artifacts
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, VIDEO_HEIGHT - 4, VIDEO_WIDTH, 4);
 
     if ('requestFrame' in track) {
       track.requestFrame();
