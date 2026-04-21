@@ -18,13 +18,16 @@ function deriveFeatures(data: DemoVideoProps): { title: string; desc: string }[]
 
   for (const cat of cats.slice(0, 4)) {
     const cl = cat.toLowerCase();
-    if (cl.includes('ai') || cl.includes('artificial intelligence')) features.push({ title: 'AI-Powered Engine', desc: 'Advanced AI delivers intelligent, accurate results every time' });
+    if (cl.includes('seo')) features.push({ title: 'SEO Powerhouse', desc: 'Dominate search rankings with AI-driven optimization' });
+    else if (cl.includes('content generation')) features.push({ title: 'Content Engine', desc: 'Generate SEO-optimized content on autopilot' });
+    else if (cl.includes('marketing automation')) features.push({ title: 'Marketing Automation', desc: 'Automate campaigns that convert and scale' });
+    else if (cl.includes('wordpress')) features.push({ title: 'WordPress Integration', desc: 'One-click publish directly to your WordPress site' });
+    else if (cl.includes('ai') || cl.includes('artificial intelligence')) features.push({ title: 'AI-Powered Engine', desc: 'Advanced AI delivers intelligent, accurate results every time' });
     else if (cl.includes('content creation')) features.push({ title: 'Content Creation', desc: 'Create polished, professional content that converts' });
     else if (cl.includes('writing')) features.push({ title: 'Writing Suite', desc: 'Advanced writing tools to craft perfect content' });
     else if (cl.includes('productivity')) features.push({ title: 'Boost Productivity', desc: 'Accomplish more in less time, automatically' });
     else if (cl.includes('marketing')) features.push({ title: 'Marketing Suite', desc: 'Tools designed to maximize your conversion rate' });
     else if (cl.includes('analytics')) features.push({ title: 'Deep Analytics', desc: 'Data-driven intelligence for smarter decisions' });
-    else if (cl.includes('seo')) features.push({ title: 'SEO Optimization', desc: 'Rank higher with intelligent content optimization' });
     else if (cl.includes('plagiarism') || cl.includes('detection')) features.push({ title: 'Detection Engine', desc: 'Industry-leading accuracy with advanced algorithms' });
     else if (cl.includes('scheduling')) features.push({ title: 'Smart Scheduling', desc: 'Intelligent scheduling that adapts to your needs' });
     else if (cl.includes('project')) features.push({ title: 'Project Management', desc: 'Plan, track, and deliver with clarity and speed' });

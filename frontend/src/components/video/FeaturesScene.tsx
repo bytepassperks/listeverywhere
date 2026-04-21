@@ -3,10 +3,19 @@ import { DemoVideoProps } from './types';
 
 function deriveNotifications(data: DemoVideoProps): { name: string; action: string }[] {
   const name = data.companyName;
-  const desc = (data.descriptionLong || data.descriptionShort || '').toLowerCase();
+  const shortDesc = (data.descriptionShort || data.tagline || '').toLowerCase();
+  const cats = (data.categories || []).map(c => c.toLowerCase());
   const names = ['Sarah', 'Alex', 'James', 'Emma', 'David', 'Lisa'];
 
-  if (desc.includes('detect') || desc.includes('humaniz')) {
+  if (cats.some(c => c.includes('seo'))) {
+    return [
+      { name: names[0], action: 'ranked #1 on Google' },
+      { name: names[1], action: 'published 10 SEO articles' },
+      { name: names[2], action: `signed up for ${name}` },
+      { name: names[3], action: 'traffic up 200% this month' },
+    ];
+  }
+  if (shortDesc.includes('detect') || shortDesc.includes('humaniz')) {
     return [
       { name: names[0], action: 'just humanized 3 documents' },
       { name: names[1], action: 'passed AI detection 100%' },
@@ -14,12 +23,20 @@ function deriveNotifications(data: DemoVideoProps): { name: string; action: stri
       { name: names[3], action: 'upgraded to Pro plan' },
     ];
   }
-  if (desc.includes('schedul')) {
+  if (cats.some(c => c.includes('scheduling'))) {
     return [
       { name: names[0], action: 'scheduled 5 meetings' },
       { name: names[1], action: `just signed up for ${name}` },
       { name: names[2], action: 'saved 2 hours today' },
       { name: names[3], action: 'booked a team call' },
+    ];
+  }
+  if (cats.some(c => c.includes('content'))) {
+    return [
+      { name: names[0], action: 'generated 5 blog posts' },
+      { name: names[1], action: `signed up for ${name}` },
+      { name: names[2], action: 'published to WordPress' },
+      { name: names[3], action: 'content went viral!' },
     ];
   }
   return [

@@ -2,32 +2,44 @@ import { useCurrentFrame, useVideoConfig, spring, interpolate } from 'remotion';
 import { DemoVideoProps } from './types';
 
 function deriveProblemStatement(data: DemoVideoProps): string {
-  const desc = (data.descriptionLong || data.descriptionShort || '').toLowerCase();
+  const shortDesc = (data.descriptionShort || data.tagline || '').toLowerCase();
   const cats = (data.categories || []).map(c => c.toLowerCase());
 
-  if (cats.some(c => c.includes('ai')) && desc.includes('detect')) return 'Tired of AI-detected content?';
-  if (cats.some(c => c.includes('ai')) && desc.includes('humaniz')) return 'AI content getting flagged?';
+  // Priority 1: Match on specific categories (most reliable signal)
+  if (cats.some(c => c.includes('seo'))) return 'Invisible on Google?';
   if (cats.some(c => c.includes('scheduling'))) return 'Still scheduling meetings manually?';
   if (cats.some(c => c.includes('project'))) return 'Drowning in project chaos?';
+  if (cats.some(c => c.includes('marketing automation'))) return 'Still marketing manually?';
   if (cats.some(c => c.includes('marketing'))) return 'Marketing not converting?';
-  if (cats.some(c => c.includes('seo'))) return 'Invisible on Google?';
+  if (cats.some(c => c.includes('content generation'))) return 'Content taking too long?';
+  if (cats.some(c => c.includes('wordpress'))) return 'WordPress slowing you down?';
   if (cats.some(c => c.includes('analytics'))) return 'Flying blind without data?';
   if (cats.some(c => c.includes('writing'))) return 'Content taking too long?';
   if (cats.some(c => c.includes('productivity'))) return 'Wasting hours every day?';
   if (cats.some(c => c.includes('developer') || c.includes('development'))) return 'Building software the hard way?';
+
+  // Priority 2: Match on short description / tagline (product-specific)
+  if (shortDesc.includes('detect') && shortDesc.includes('humaniz')) return 'Tired of AI-detected content?';
+  if (shortDesc.includes('humaniz')) return 'AI content getting flagged?';
+  if (shortDesc.includes('schedul')) return 'Still scheduling meetings manually?';
+  if (shortDesc.includes('automat')) return 'Still doing it manually?';
+
+  // Priority 3: Broad category matches
   if (cats.some(c => c.includes('content'))) return "Your content isn't working.";
-  if (desc.includes('automat')) return 'Still doing it manually?';
+  if (cats.some(c => c.includes('ai'))) return 'Ready to work smarter with AI?';
+
   return `There's a better way.`;
 }
 
 function deriveSolutionLine(data: DemoVideoProps): string {
   const name = data.companyName;
-  const desc = (data.descriptionLong || data.descriptionShort || '').toLowerCase();
-
-  if (desc.includes('detect') && desc.includes('humaniz')) return `${name} detects & humanizes in seconds`;
-  if (desc.includes('schedul')) return `${name} handles scheduling for you`;
-  if (desc.includes('automat')) return `${name} automates the hard parts`;
-  return data.tagline || `${name} changes everything`;
+  if (data.tagline) return data.tagline;
+  const shortDesc = (data.descriptionShort || '').toLowerCase();
+  if (shortDesc.includes('seo')) return `${name} dominates search rankings for you`;
+  if (shortDesc.includes('detect') && shortDesc.includes('humaniz')) return `${name} detects & humanizes in seconds`;
+  if (shortDesc.includes('schedul')) return `${name} handles scheduling for you`;
+  if (shortDesc.includes('automat')) return `${name} automates the hard parts`;
+  return `${name} changes everything`;
 }
 
 export const IntroScene: React.FC<{ data: DemoVideoProps }> = ({ data }) => {

@@ -9,10 +9,15 @@ function deriveCTAText(data: DemoVideoProps): string {
 }
 
 function deriveUrgencyText(data: DemoVideoProps): string {
-  const desc = (data.descriptionLong || data.descriptionShort || '').toLowerCase();
-  if (desc.includes('detect') || desc.includes('humaniz')) return 'Join 10K+ content creators';
-  if (desc.includes('schedul')) return 'Save 5+ hours every week';
-  if (desc.includes('automat')) return 'Automate your workflow today';
+  const cats = (data.categories || []).map(c => c.toLowerCase());
+  const shortDesc = (data.descriptionShort || data.tagline || '').toLowerCase();
+
+  if (cats.some(c => c.includes('seo'))) return 'Join 500+ businesses ranking #1';
+  if (shortDesc.includes('detect') || shortDesc.includes('humaniz')) return 'Join 10K+ content creators';
+  if (cats.some(c => c.includes('scheduling'))) return 'Save 5+ hours every week';
+  if (cats.some(c => c.includes('content'))) return 'Join 1K+ content teams';
+  if (cats.some(c => c.includes('marketing'))) return 'Boost conversions starting today';
+  if (shortDesc.includes('automat')) return 'Automate your workflow today';
   return `Join thousands using ${data.companyName}`;
 }
 

@@ -17,13 +17,19 @@ async function resolveLogoUrl(logoUrl: string, website: string): Promise<string>
   // Try multiple logo sources in order of preference
   const candidates: string[] = [];
   
-  // 1. Original logo URL from database
-  if (logoUrl) candidates.push(logoUrl);
+  // 1. Original logo URL from database (skip if it looks like a screenshot, not a logo)
+  if (logoUrl) {
+    const lowerLogo = logoUrl.toLowerCase();
+    const isScreenshot = lowerLogo.includes('screenshot') || lowerLogo.includes('dashboard') || lowerLogo.includes('overview') || lowerLogo.includes('og-image');
+    if (!isScreenshot) candidates.push(logoUrl);
+  }
   
   // 2. Common logo paths on the website
   if (hostname) {
     candidates.push(`https://${hostname}/images/logo.png`);
     candidates.push(`https://${hostname}/logo.png`);
+    candidates.push(`https://${hostname}/logo.svg`);
+    candidates.push(`https://${hostname}/favicon.png`);
     candidates.push(`https://${hostname}/favicon.ico`);
   }
 
