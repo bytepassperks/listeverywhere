@@ -147,6 +147,45 @@ async function runWeeklyUpdate(): Promise<void> {
   console.log(`[WeeklyUpdater] Cycle complete: ${updated} updated, ${failed} failed, ${companies.length - updated - failed} unchanged`);
 }
 
+async function runDirectoryFreshnessCheck(): Promise<void> {
+  console.log('[DirectoryChecker] Starting directory freshness check...');
+
+  const directories = await query<{ id: string; name: string; submit_url: string }>(
+    `SELECT id, name, submit_url FROM directories WHERE active = true ORDER BY created_at ASC LIMIT 500`
+  );
+
+  console.log(`[DirectoryChecker] Checking ${directories.length} directories...`);
+
+  let deactivated = 0;
+
+  for (const dir of directories) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+
+      const response = await fetch(dir.submit_url, {
+        method: 'HEAD',
+        signal: controller.signal,
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ListEverywhereBot/1.0)' },
+        redirect: 'follow',
+      });
+
+      clearTimeout(timeout);
+
+      if (response.status === 404 || response.status === 410) {
+        await query('UPDATE directories SET active = false WHERE id = $1', [dir.id]);
+        deactivated++;
+        console.log(`[DirectoryChecker] Deactivated ${dir.name} (${response.status})`);
+      }
+    } catch {
+      // Network errors, timeouts, CORS — don't deactivate (sites may block bots)
+    }
+  }
+
+  console.log(`[DirectoryChecker] Complete. ${deactivated} directories deactivated.`);
+}
+
+// Companies update: every Monday at 3:00 AM UTC
 cron.schedule('0 3 * * 1', async () => {
   console.log('[WeeklyUpdater] Scheduled weekly update triggered');
   await runWeeklyUpdate();
@@ -154,7 +193,15 @@ cron.schedule('0 3 * * 1', async () => {
   timezone: 'UTC',
 });
 
-console.log('[WeeklyUpdater] Cron job scheduled: every Monday at 3:00 AM UTC');
+// Directory freshness check: every Sunday at 2:00 AM UTC
+cron.schedule('0 2 * * 0', async () => {
+  console.log('[DirectoryChecker] Scheduled directory freshness check triggered');
+  await runDirectoryFreshnessCheck();
+}, {
+  timezone: 'UTC',
+});
+
+console.log('[WeeklyUpdater] Cron jobs scheduled: companies Monday 3AM UTC, directories Sunday 2AM UTC');
 
 if (require.main === module) {
   console.log('[WeeklyUpdater] Running manual update...');
@@ -169,4 +216,4 @@ if (require.main === module) {
     });
 }
 
-export { runWeeklyUpdate };
+export { runWeeklyUpdate, runDirectoryFreshnessCheck };
