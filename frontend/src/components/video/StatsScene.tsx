@@ -13,7 +13,6 @@ const FEATURE_COLORS = [
 function deriveFeatures(data: DemoVideoProps): { title: string; desc: string }[] {
   const features: { title: string; desc: string }[] = [];
   const cats = data.categories || [];
-  const desc = (data.descriptionLong || data.descriptionShort || '').toLowerCase();
   const name = data.companyName;
 
   for (const cat of cats.slice(0, 4)) {
@@ -34,9 +33,10 @@ function deriveFeatures(data: DemoVideoProps): { title: string; desc: string }[]
     else features.push({ title: cat, desc: `Best-in-class ${cat.toLowerCase()} capabilities` });
   }
 
-  if (desc.includes('humaniz') && features.length < 6) features.push({ title: 'Text Humanization', desc: 'Transform AI text into natural, human-sounding content' });
-  if ((desc.includes('accuracy') || desc.includes('99%')) && features.length < 6) features.push({ title: '99% Accuracy', desc: 'Industry-leading precision powered by advanced ML' });
-  if (desc.includes('free') && features.length < 6) features.push({ title: 'Free to Start', desc: 'Get started for free with generous usage limits' });
+  const shortDesc = (data.descriptionShort || data.tagline || '').toLowerCase();
+  if (shortDesc.includes('humaniz') && features.length < 6) features.push({ title: 'Text Humanization', desc: 'Transform AI text into natural, human-sounding content' });
+  if ((shortDesc.includes('accuracy') || shortDesc.includes('99%')) && features.length < 6) features.push({ title: '99% Accuracy', desc: 'Industry-leading precision powered by advanced ML' });
+  if (shortDesc.includes('free') && features.length < 6) features.push({ title: 'Free to Start', desc: 'Get started for free with generous usage limits' });
 
   const pricing = data.pricingModel || 'freemium';
   if (features.length < 6) {

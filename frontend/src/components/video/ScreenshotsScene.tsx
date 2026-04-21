@@ -2,29 +2,56 @@ import { useCurrentFrame, useVideoConfig, spring, interpolate, Img } from 'remot
 import { DemoVideoProps } from './types';
 
 function deriveAnnotations(data: DemoVideoProps): { text: string; emoji: string }[] {
-  const desc = (data.descriptionLong || data.descriptionShort || '').toLowerCase();
   const cats = (data.categories || []).map(c => c.toLowerCase());
   const annotations: { text: string; emoji: string }[] = [];
 
-  if (desc.includes('detect') || cats.some(c => c.includes('detection'))) annotations.push({ text: 'AI Detection', emoji: '\uD83D\uDD0D' });
-  if (desc.includes('humaniz')) annotations.push({ text: 'Text Humanizer', emoji: '\u2728' });
-  if (desc.includes('plagiar')) annotations.push({ text: 'Plagiarism Check', emoji: '\uD83D\uDEE1\uFE0F' });
-  if (cats.some(c => c.includes('writing'))) annotations.push({ text: 'Writing Tools', emoji: '\u270D\uFE0F' });
-  if (cats.some(c => c.includes('content'))) annotations.push({ text: 'Content Engine', emoji: '\uD83D\uDCDD' });
-  if (cats.some(c => c.includes('ai'))) annotations.push({ text: 'AI Powered', emoji: '\uD83E\uDD16' });
-  if (cats.some(c => c.includes('scheduling'))) annotations.push({ text: 'Smart Scheduling', emoji: '\uD83D\uDCC5' });
-  if (cats.some(c => c.includes('analytics'))) annotations.push({ text: 'Analytics', emoji: '\uD83D\uDCCA' });
-  if (cats.some(c => c.includes('productivity'))) annotations.push({ text: 'Productivity', emoji: '\u26A1' });
+  const categoryMap: { pattern: string; text: string; emoji: string }[] = [
+    { pattern: 'seo', text: 'SEO Optimization', emoji: '\uD83D\uDD0D' },
+    { pattern: 'content', text: 'Content Engine', emoji: '\uD83D\uDCDD' },
+    { pattern: 'marketing', text: 'Marketing Automation', emoji: '\uD83D\uDCE3' },
+    { pattern: 'wordpress', text: 'WordPress Integration', emoji: '\uD83D\uDD27' },
+    { pattern: 'ai', text: 'AI Powered', emoji: '\uD83E\uDD16' },
+    { pattern: 'writing', text: 'Writing Tools', emoji: '\u270D\uFE0F' },
+    { pattern: 'detection', text: 'AI Detection', emoji: '\uD83D\uDEE1\uFE0F' },
+    { pattern: 'plagiar', text: 'Plagiarism Check', emoji: '\uD83D\uDEE1\uFE0F' },
+    { pattern: 'scheduling', text: 'Smart Scheduling', emoji: '\uD83D\uDCC5' },
+    { pattern: 'analytics', text: 'Analytics', emoji: '\uD83D\uDCCA' },
+    { pattern: 'productivity', text: 'Productivity', emoji: '\u26A1' },
+    { pattern: 'design', text: 'Design Tools', emoji: '\uD83C\uDFA8' },
+    { pattern: 'ecommerce', text: 'E-commerce', emoji: '\uD83D\uDED2' },
+    { pattern: 'crm', text: 'CRM Platform', emoji: '\uD83D\uDCBC' },
+    { pattern: 'social', text: 'Social Media', emoji: '\uD83D\uDCF1' },
+    { pattern: 'finance', text: 'Finance Tools', emoji: '\uD83D\uDCB0' },
+    { pattern: 'developer', text: 'Developer Tools', emoji: '\uD83D\uDCBB' },
+    { pattern: 'security', text: 'Security', emoji: '\uD83D\uDD12' },
+    { pattern: 'automation', text: 'Automation', emoji: '\u2699\uFE0F' },
+    { pattern: 'project', text: 'Project Management', emoji: '\uD83D\uDCCB' },
+    { pattern: 'email', text: 'Email Marketing', emoji: '\uD83D\uDCE7' },
+    { pattern: 'video', text: 'Video Tools', emoji: '\uD83C\uDFA5' },
+    { pattern: 'education', text: 'Education', emoji: '\uD83C\uDF93' },
+    { pattern: 'health', text: 'Health & Wellness', emoji: '\uD83C\uDFE5' },
+  ];
 
-  // Pad
+  for (const mapping of categoryMap) {
+    if (annotations.length >= 4) break;
+    if (cats.some(c => c.includes(mapping.pattern))) {
+      if (!annotations.some(a => a.text === mapping.text)) {
+        annotations.push({ text: mapping.text, emoji: mapping.emoji });
+      }
+    }
+  }
+
   const fallbacks = [
     { text: 'Easy to Use', emoji: '\uD83D\uDE80' },
     { text: 'Lightning Fast', emoji: '\u26A1' },
     { text: 'Secure', emoji: '\uD83D\uDD12' },
+    { text: 'Cloud Based', emoji: '\u2601\uFE0F' },
   ];
   let fi = 0;
   while (annotations.length < 4 && fi < fallbacks.length) {
-    annotations.push(fallbacks[fi]);
+    if (!annotations.some(a => a.text === fallbacks[fi].text)) {
+      annotations.push(fallbacks[fi]);
+    }
     fi++;
   }
   return annotations.slice(0, 4);
