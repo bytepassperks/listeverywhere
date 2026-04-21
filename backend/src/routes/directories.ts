@@ -67,6 +67,52 @@ export async function directoryRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ directories: stats, byType, total: stats.length });
   });
 
+  // Bulk fix broken directories (POST /api/directories/fix-broken)
+  app.post('/api/directories/fix-broken', async (request, reply) => {
+    const body = request.body as {
+      fixes: Array<{
+        id: string;
+        action: 'deactivate' | 'update';
+        new_url?: string;
+      }>;
+    };
+
+    if (!body.fixes || !Array.isArray(body.fixes)) {
+      return reply.status(400).send({ error: 'fixes array is required' });
+    }
+
+    let deactivated = 0;
+    let updated = 0;
+    let errors = 0;
+
+    for (const fix of body.fixes) {
+      try {
+        if (fix.action === 'deactivate') {
+          await query('UPDATE directories SET active = false WHERE id = $1', [fix.id]);
+          deactivated++;
+        } else if (fix.action === 'update' && fix.new_url) {
+          await query('UPDATE directories SET submit_url = $1 WHERE id = $2', [fix.new_url, fix.id]);
+          updated++;
+        }
+      } catch {
+        errors++;
+      }
+    }
+
+    const activeCount = await queryOne<{ count: string }>('SELECT COUNT(*) as count FROM directories WHERE active = true');
+    const totalCount = await queryOne<{ count: string }>('SELECT COUNT(*) as count FROM directories');
+
+    return reply.send({
+      message: `Fix complete. ${updated} updated, ${deactivated} deactivated, ${errors} errors.`,
+      updated,
+      deactivated,
+      errors,
+      total_fixes: body.fixes.length,
+      active_directories: parseInt(activeCount?.count || '0', 10),
+      total_directories: parseInt(totalCount?.count || '0', 10),
+    });
+  });
+
   // Seed 10K+ directories endpoint (POST /api/directories/seed-10k)
   app.post('/api/directories/seed-10k', async (_request, reply) => {
     const seedPath = path.resolve(__dirname, '../../seed/directories_10k.json');
