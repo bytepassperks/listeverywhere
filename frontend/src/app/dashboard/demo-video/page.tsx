@@ -7,6 +7,7 @@ import { api, Company, Screenshot } from '@/lib/api';
 import { DemoVideoPlayer, TOTAL_DURATION_FRAMES } from '@/components/video/DemoVideoPlayer';
 import { DemoVideoProps } from '@/components/video/types';
 import { exportVideoToMp4, downloadFromBlobUrl } from '@/components/video/exportVideo';
+import { DarkVideoPlayer } from '@/components/video/DarkVideoPlayer';
 
 async function resolveLogoUrl(logoUrl: string, website: string): Promise<string> {
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://listeverywhere-api.onrender.com';
@@ -259,44 +260,10 @@ function DemoVideoContent() {
               </div>
             </div>
 
-            {/* After export: show custom dark-themed video player with no bright seek bar */}
+            {/* After export: fully custom dark video player — no native Chrome controls */}
             {exportedVideoUrl ? (
               <div className="flex justify-center">
-                <div style={{ width: '100%', maxWidth: 960 }}>
-                  <style>{`
-                    .dark-video-player::-webkit-media-controls-panel {
-                      background: rgba(5, 5, 16, 0.95) !important;
-                    }
-                    .dark-video-player::-webkit-media-controls-timeline {
-                      background: rgba(255, 255, 255, 0.08) !important;
-                      border-radius: 2px !important;
-                      height: 3px !important;
-                    }
-                    .dark-video-player::-webkit-media-controls-current-time-display,
-                    .dark-video-player::-webkit-media-controls-time-remaining-display {
-                      color: rgba(255, 255, 255, 0.6) !important;
-                    }
-                    .dark-video-player::-webkit-media-controls-volume-slider {
-                      background: rgba(255, 255, 255, 0.1) !important;
-                    }
-                    .dark-video-player::-webkit-media-controls-play-button,
-                    .dark-video-player::-webkit-media-controls-mute-button,
-                    .dark-video-player::-webkit-media-controls-fullscreen-button {
-                      filter: brightness(0.7) !important;
-                    }
-                  `}</style>
-                  <video
-                    className="dark-video-player"
-                    src={exportedVideoUrl}
-                    controls
-                    autoPlay
-                    style={{
-                      width: '100%',
-                      borderRadius: 12,
-                      background: '#050510',
-                    }}
-                  />
-                </div>
+                <DarkVideoPlayer src={exportedVideoUrl} />
               </div>
             ) : (
               <div className="flex justify-center">
