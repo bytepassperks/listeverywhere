@@ -93,13 +93,14 @@ export async function directoryRoutes(app: FastifyInstance): Promise<void> {
 
     for (const dir of directories) {
       try {
-        const result = await query(
+        const result = await query<{ id: string }>(
           `INSERT INTO directories (
              name, submit_url, submission_type, title_limit, desc_limit,
              requires_logo, requires_screenshot, requires_category,
              category_taxonomy, notes, active
            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)
-           ON CONFLICT (name) DO NOTHING`,
+           ON CONFLICT (name) DO NOTHING
+           RETURNING id`,
           [
             dir.name,
             dir.submit_url,
@@ -113,7 +114,7 @@ export async function directoryRoutes(app: FastifyInstance): Promise<void> {
             dir.notes || '',
           ]
         );
-        if (result.rowCount && result.rowCount > 0) {
+        if (result.length > 0) {
           inserted++;
         } else {
           skipped++;
