@@ -41,51 +41,66 @@ export const DemoVideoComposition: React.FC<{ data: DemoVideoProps }> = ({ data 
 
   const sceneStart = (i: number) => i * (sceneDur - overlap);
 
+  const hostname = (() => {
+    try { return new URL(data.website).hostname; } catch { return data.website; }
+  })();
+
   return (
-    <AbsoluteFill style={{ background: '#000000' }}>
-      <AbsoluteFill style={{ background: '#050510' }}>
-        <Sequence from={sceneStart(0)} durationInFrames={sceneDur}>
-          <SceneWrapper durationInFrames={sceneDur}>
-            <IntroScene data={data} />
-          </SceneWrapper>
-        </Sequence>
+    <AbsoluteFill style={{ background: '#050510' }}>
+      <Sequence from={sceneStart(0)} durationInFrames={sceneDur}>
+        <SceneWrapper durationInFrames={sceneDur}>
+          <IntroScene data={data} />
+        </SceneWrapper>
+      </Sequence>
 
-        <Sequence from={sceneStart(1)} durationInFrames={sceneDur}>
-          <SceneWrapper durationInFrames={sceneDur}>
-            <FeaturesScene data={data} />
-          </SceneWrapper>
-        </Sequence>
+      <Sequence from={sceneStart(1)} durationInFrames={sceneDur}>
+        <SceneWrapper durationInFrames={sceneDur}>
+          <FeaturesScene data={data} />
+        </SceneWrapper>
+      </Sequence>
 
-        <Sequence from={sceneStart(2)} durationInFrames={sceneDur}>
-          <SceneWrapper durationInFrames={sceneDur}>
-            <ScreenshotsScene data={data} />
-          </SceneWrapper>
-        </Sequence>
+      <Sequence from={sceneStart(2)} durationInFrames={sceneDur}>
+        <SceneWrapper durationInFrames={sceneDur}>
+          <ScreenshotsScene data={data} />
+        </SceneWrapper>
+      </Sequence>
 
-        <Sequence from={sceneStart(3)} durationInFrames={sceneDur}>
-          <SceneWrapper durationInFrames={sceneDur}>
-            <StatsScene data={data} />
-          </SceneWrapper>
-        </Sequence>
+      <Sequence from={sceneStart(3)} durationInFrames={sceneDur}>
+        <SceneWrapper durationInFrames={sceneDur}>
+          <StatsScene data={data} />
+        </SceneWrapper>
+      </Sequence>
 
-        <Sequence from={sceneStart(4)} durationInFrames={sceneDur}>
-          <SceneWrapper durationInFrames={sceneDur}>
-            <OutroScene data={data} />
-          </SceneWrapper>
-        </Sequence>
-      </AbsoluteFill>
-      {/* Permanent fade-to-black at bottom/top edges — baked into the composition
-          so html2canvas captures it as part of the scene content */}
+      <Sequence from={sceneStart(4)} durationInFrames={sceneDur}>
+        <SceneWrapper durationInFrames={sceneDur}>
+          <OutroScene data={data} />
+        </SceneWrapper>
+      </Sequence>
+
+      {/* Persistent branded footer bar — provides visual content at the bottom
+          so video player seek bars blend in rather than contrasting with black */}
       <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0, height: 80,
-        background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.6) 50%, #000000 100%)',
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 48,
+        background: 'linear-gradient(to bottom, rgba(10,10,30,0.0) 0%, rgba(10,10,30,0.95) 40%, rgba(15,15,35,1) 100%)',
+        display: 'flex',
+        alignItems: 'flex-end',
+        justifyContent: 'center',
+        paddingBottom: 12,
         pointerEvents: 'none',
-      }} />
-      <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, height: 10,
-        background: 'linear-gradient(to top, transparent 0%, #000000 100%)',
-        pointerEvents: 'none',
-      }} />
+      }}>
+        <span style={{
+          color: 'rgba(255,255,255,0.35)',
+          fontSize: 13,
+          fontFamily: 'Inter, system-ui, sans-serif',
+          letterSpacing: '0.5px',
+        }}>
+          {hostname}
+        </span>
+      </div>
     </AbsoluteFill>
   );
 };

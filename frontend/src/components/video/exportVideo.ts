@@ -175,24 +175,9 @@ async function exportWithWebCodecs(
     frameCanvas.width = encWidth;
     frameCanvas.height = encHeight;
     const ctx = frameCanvas.getContext('2d')!;
-    ctx.fillStyle = '#000000';
+    ctx.fillStyle = '#050510';
     ctx.fillRect(0, 0, encWidth, encHeight);
     ctx.drawImage(canvas, 0, 0, encWidth, encHeight);
-    // Gradient fade to black at bottom edge so video blends seamlessly with
-    // any dark-themed video player controls (no hard transition line)
-    const fadeHeight = 60;
-    const grad = ctx.createLinearGradient(0, encHeight - fadeHeight, 0, encHeight);
-    grad.addColorStop(0, 'rgba(0,0,0,0)');
-    grad.addColorStop(0.5, 'rgba(0,0,0,0.7)');
-    grad.addColorStop(1, 'rgba(0,0,0,1)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, encHeight - fadeHeight, encWidth, fadeHeight);
-    // Also fade top edge
-    const topGrad = ctx.createLinearGradient(0, 0, 0, 8);
-    topGrad.addColorStop(0, 'rgba(0,0,0,1)');
-    topGrad.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = topGrad;
-    ctx.fillRect(0, 0, encWidth, 8);
 
     // Each captured frame represents 2 actual frames (frameStep=2)
     // So timestamp spacing should account for this
@@ -281,22 +266,9 @@ async function exportWithMediaRecorder(
       logging: false,
     });
 
-    ctx.fillStyle = '#000000';
+    ctx.fillStyle = '#050510';
     ctx.fillRect(0, 0, VIDEO_WIDTH, VIDEO_HEIGHT);
     ctx.drawImage(captured, 0, 0, VIDEO_WIDTH, VIDEO_HEIGHT);
-    // Gradient fade to black at bottom edge
-    const fadeH = 60;
-    const g = ctx.createLinearGradient(0, VIDEO_HEIGHT - fadeH, 0, VIDEO_HEIGHT);
-    g.addColorStop(0, 'rgba(0,0,0,0)');
-    g.addColorStop(0.5, 'rgba(0,0,0,0.7)');
-    g.addColorStop(1, 'rgba(0,0,0,1)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, VIDEO_HEIGHT - fadeH, VIDEO_WIDTH, fadeH);
-    const tg = ctx.createLinearGradient(0, 0, 0, 8);
-    tg.addColorStop(0, 'rgba(0,0,0,1)');
-    tg.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = tg;
-    ctx.fillRect(0, 0, VIDEO_WIDTH, 8);
 
     if ('requestFrame' in track) {
       track.requestFrame();
