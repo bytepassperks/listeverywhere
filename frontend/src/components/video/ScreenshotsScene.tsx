@@ -1,6 +1,35 @@
 import { useCurrentFrame, useVideoConfig, spring, interpolate, Img } from 'remotion';
 import { DemoVideoProps } from './types';
 
+function deriveAnnotations(data: DemoVideoProps): { text: string; emoji: string }[] {
+  const desc = (data.descriptionLong || data.descriptionShort || '').toLowerCase();
+  const cats = (data.categories || []).map(c => c.toLowerCase());
+  const annotations: { text: string; emoji: string }[] = [];
+
+  if (desc.includes('detect') || cats.some(c => c.includes('detection'))) annotations.push({ text: 'AI Detection', emoji: '\uD83D\uDD0D' });
+  if (desc.includes('humaniz')) annotations.push({ text: 'Text Humanizer', emoji: '\u2728' });
+  if (desc.includes('plagiar')) annotations.push({ text: 'Plagiarism Check', emoji: '\uD83D\uDEE1\uFE0F' });
+  if (cats.some(c => c.includes('writing'))) annotations.push({ text: 'Writing Tools', emoji: '\u270D\uFE0F' });
+  if (cats.some(c => c.includes('content'))) annotations.push({ text: 'Content Engine', emoji: '\uD83D\uDCDD' });
+  if (cats.some(c => c.includes('ai'))) annotations.push({ text: 'AI Powered', emoji: '\uD83E\uDD16' });
+  if (cats.some(c => c.includes('scheduling'))) annotations.push({ text: 'Smart Scheduling', emoji: '\uD83D\uDCC5' });
+  if (cats.some(c => c.includes('analytics'))) annotations.push({ text: 'Analytics', emoji: '\uD83D\uDCCA' });
+  if (cats.some(c => c.includes('productivity'))) annotations.push({ text: 'Productivity', emoji: '\u26A1' });
+
+  // Pad
+  const fallbacks = [
+    { text: 'Easy to Use', emoji: '\uD83D\uDE80' },
+    { text: 'Lightning Fast', emoji: '\u26A1' },
+    { text: 'Secure', emoji: '\uD83D\uDD12' },
+  ];
+  let fi = 0;
+  while (annotations.length < 4 && fi < fallbacks.length) {
+    annotations.push(fallbacks[fi]);
+    fi++;
+  }
+  return annotations.slice(0, 4);
+}
+
 export const ScreenshotsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -8,13 +37,15 @@ export const ScreenshotsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) =
   const grad2X = 60 + Math.sin(frame * 0.01) * 15;
   const grad2Y = 40 + Math.cos(frame * 0.013) * 15;
 
+  const annotations = deriveAnnotations(data);
+
   // Browser entrance
   const browserProgress = spring({ frame: frame - 5, fps, config: { damping: 14, mass: 0.8, stiffness: 70 } });
   const browserScale = interpolate(Math.max(0, browserProgress), [0, 1], [0.7, 1]);
   const browserY = interpolate(Math.max(0, browserProgress), [0, 1], [80, 0]);
   const browserBlur = interpolate(Math.max(0, browserProgress), [0, 1], [15, 0]);
 
-  // 3D tilt with gentle floating
+  // 3D tilt
   const tiltX = interpolate(frame, [0, 60, 180, 240], [-8, 2, -1, 3], { extrapolateRight: 'clamp' });
   const tiltY = interpolate(frame, [0, 80, 160, 240], [12, -3, 2, -4], { extrapolateRight: 'clamp' });
   const floatY = Math.sin(frame * 0.025) * 4;
@@ -23,57 +54,44 @@ export const ScreenshotsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) =
   const titleProgress = spring({ frame, fps, config: { damping: 16, stiffness: 80 } });
   const titleBlur = interpolate(Math.max(0, titleProgress), [0, 1], [10, 0]);
 
-  const screenshots = data.screenshots.length > 0
-    ? data.screenshots
-    : [
-        { type: 'homepage', file_url: '' },
-        { type: 'features', file_url: '' },
-        { type: 'pricing', file_url: '' },
-      ];
+  const screenshots = data.screenshots.filter(s => s.file_url && (s.file_url.startsWith('http') || s.file_url.startsWith('/')));
+  const hasReal = screenshots.length > 0;
 
-  const hasRealScreenshots = screenshots.some(s => s.file_url && (s.file_url.startsWith('http') || s.file_url.startsWith('/')));
+  // Screenshot carousel
+  const cycleDuration = 70;
+  const currentIdx = hasReal ? Math.floor(((frame - 30) < 0 ? 0 : (frame - 30)) / cycleDuration) % screenshots.length : 0;
+  const cycleFrame = ((frame - 30) < 0 ? 0 : (frame - 30)) % cycleDuration;
+  const ssOpacity = interpolate(cycleFrame, [0, 8, cycleDuration - 8, cycleDuration], [0, 1, 1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const currentSS = screenshots[currentIdx];
 
-  // Screenshot carousel: switch between screenshots over time
-  const screenshotCycleDuration = 70; // frames per screenshot
-  const currentScreenshotIndex = hasRealScreenshots
-    ? Math.floor(((frame - 30) < 0 ? 0 : (frame - 30)) / screenshotCycleDuration) % screenshots.filter(s => s.file_url).length
-    : 0;
+  const pageLabels: Record<string, string> = { homepage: 'Homepage', features: 'Features', pricing: 'Pricing' };
 
-  // Crossfade between screenshots
-  const cycleFrame = ((frame - 30) < 0 ? 0 : (frame - 30)) % screenshotCycleDuration;
-  const screenshotOpacity = interpolate(
-    cycleFrame,
-    [0, 8, screenshotCycleDuration - 8, screenshotCycleDuration],
-    [0, 1, 1, 0],
-    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
-  );
+  // Cursor animation — moves across the screenshot
+  const cursorX = interpolate(frame, [30, 80, 140, 200], [200, 400, 300, 500], { extrapolateRight: 'clamp' });
+  const cursorY = interpolate(frame, [30, 80, 140, 200], [100, 200, 150, 250], { extrapolateRight: 'clamp' });
+  const cursorOpacity = interpolate(frame, [25, 35, 220, 240], [0, 0.8, 0.8, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
-  const screenshotsWithUrls = screenshots.filter(s => s.file_url && (s.file_url.startsWith('http') || s.file_url.startsWith('/')));
-  const currentScreenshot = screenshotsWithUrls[currentScreenshotIndex];
+  // Click ripple effect at cursor position
+  const clickFrames = [80, 140, 200];
+  const clickRipples = clickFrames.map((cf, i) => {
+    const rippleLife = Math.max(0, frame - cf);
+    const rippleScale = rippleLife * 0.15;
+    const rippleOpacity = interpolate(rippleLife, [0, 5, 20], [0, 0.4, 0], { extrapolateRight: 'clamp' });
+    const cx = interpolate(cf, [30, 80, 140, 200], [200, 400, 300, 500], { extrapolateRight: 'clamp' });
+    const cy = interpolate(cf, [30, 80, 140, 200], [100, 200, 150, 250], { extrapolateRight: 'clamp' });
+    return { scale: rippleScale, opacity: rippleOpacity, x: cx, y: cy, i };
+  });
 
-  // Page label
-  const pageLabels: Record<string, string> = {
-    homepage: 'Homepage',
-    features: 'Features',
-    pricing: 'Pricing',
-  };
-
-  // Annotations
-  const annotations = [
-    { text: data.categories?.[0] || 'Key Feature', x: -80, y: -60, delay: 60 },
-    { text: data.pricingModel ? `${data.pricingModel.charAt(0).toUpperCase() + data.pricingModel.slice(1)} Plans` : 'Flexible Pricing', x: 460, y: 40, delay: 80 },
-    { text: data.categories?.[1] || 'Built for You', x: -60, y: 120, delay: 100 },
+  // Annotation positions around browser
+  const annotPositions = [
+    { x: -120, y: -40 },
+    { x: 520, y: 30 },
+    { x: -100, y: 180 },
+    { x: 500, y: 200 },
   ];
 
-  // Floating tech badges
-  const badges = [
-    { text: data.categories?.[2] || 'Powerful', x: -140, y: -40, delay: 70, color: '#6366f1' },
-    { text: data.categories?.[3] || 'Reliable', x: 530, y: -30, delay: 90, color: '#22c55e' },
-    { text: 'Try it Free', x: 510, y: 160, delay: 105, color: '#8b5cf6' },
-  ];
-
-  // Thumbnail strip timing
-  const thumbStartFrame = 120;
+  // Zoom effect
+  const zoomScale = interpolate(frame, [60, 120, 180, 240], [1, 1.08, 1.03, 1], { extrapolateRight: 'clamp' });
 
   return (
     <div
@@ -94,501 +112,242 @@ export const ScreenshotsScene: React.FC<{ data: DemoVideoProps }> = ({ data }) =
         perspective: '1800px',
       }}
     >
-      {/* Perspective grid floor */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: `
-            linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px)
-          `,
-          backgroundSize: '80px 80px',
-          transform: 'perspective(1000px) rotateX(60deg) translateY(-200px)',
-          transformOrigin: 'center top',
-          opacity: 0.5,
-        }}
-      />
+      {/* Grid floor */}
+      <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px)', backgroundSize: '80px 80px', transform: 'perspective(1000px) rotateX(60deg) translateY(-200px)', transformOrigin: 'center top', opacity: 0.5 }} />
 
       {/* Title */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 40,
-          textAlign: 'center',
-          zIndex: 10,
-        }}
-      >
-        <h2
-          style={{
-            fontSize: 44,
-            fontWeight: 800,
-            color: 'white',
-            margin: 0,
-            opacity: Math.max(0, titleProgress),
-            filter: `blur(${titleBlur}px)`,
-            fontFamily: 'system-ui, -apple-system, sans-serif',
-            letterSpacing: -1.5,
-          }}
-        >
+      <div style={{ position: 'absolute', top: 30, textAlign: 'center', zIndex: 10 }}>
+        <h2 style={{
+          fontSize: 44,
+          fontWeight: 800,
+          color: 'white',
+          margin: 0,
+          opacity: Math.max(0, titleProgress),
+          filter: `blur(${titleBlur}px)`,
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          letterSpacing: -1.5,
+        }}>
           See{' '}
-          <span
-            style={{
-              color: '#818cf8',
-            }}
-          >
-            {data.companyName} in Action
-          </span>
+          <span style={{ color: '#a78bfa' }}>{data.companyName}</span>
+          {' '}in Action
         </h2>
-        <p
-          style={{
-            fontSize: 18,
-            color: 'rgba(180, 180, 210, 0.6)',
-            margin: '10px 0 0',
-            opacity: Math.max(0, spring({ frame: frame - 15, fps, config: { damping: 16 } })),
-            fontFamily: 'system-ui, -apple-system, sans-serif',
-          }}
-        >
-          {data.tagline || data.descriptionShort || `Explore what ${data.companyName} has to offer`}
+        <p style={{
+          fontSize: 18,
+          color: 'rgba(180, 180, 210, 0.6)',
+          margin: '8px 0 0',
+          opacity: Math.max(0, spring({ frame: frame - 15, fps, config: { damping: 16 } })),
+          fontFamily: 'system-ui, sans-serif',
+        }}>
+          {data.tagline || `Discover what ${data.companyName} can do for you`}
         </p>
       </div>
 
-      {/* Main browser mockup with 3D perspective */}
+      {/* Browser mockup */}
       <div
         style={{
           transform: `
-            scale(${browserScale})
-            translateY(${browserY + floatY + 10}px)
-            perspective(1800px)
-            rotateX(${tiltX}deg)
-            rotateY(${tiltY}deg)
+            scale(${browserScale * zoomScale})
+            translateY(${browserY + floatY + 15}px)
+            perspective(1800px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)
           `,
           filter: `blur(${browserBlur}px)`,
-          transformStyle: 'preserve-3d',
           position: 'relative',
           zIndex: 5,
         }}
       >
         {/* Browser chrome */}
-        <div
-          style={{
-            width: 780,
-            height: 470,
-            borderRadius: 16,
-            overflow: 'hidden',
-            background: 'rgba(15, 15, 30, 0.95)',
-            border: '1px solid rgba(255, 255, 255, 0.04)',
-            boxShadow: `
-              0 40px 80px rgba(0, 0, 0, 0.6),
-              0 0 80px rgba(99, 102, 241, 0.1)
-            `,
-          }}
-        >
-          {/* Title bar */}
-          <div
-            style={{
-              height: 42,
-              background: 'linear-gradient(180deg, rgba(25, 25, 50, 0.98) 0%, rgba(20, 20, 40, 0.98) 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              padding: '0 16px',
-              gap: 8,
-              borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
-            }}
-          >
-            <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f57', boxShadow: 'inset 0 -1px 2px rgba(0,0,0,0.2)' }} />
-            <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#febc2e', boxShadow: 'inset 0 -1px 2px rgba(0,0,0,0.2)' }} />
-            <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#28c840', boxShadow: 'inset 0 -1px 2px rgba(0,0,0,0.2)' }} />
-            <div
-              style={{
-                marginLeft: 16,
-                flex: 1,
-                height: 26,
-                borderRadius: 8,
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-              }}
-            >
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(34,197,94,0.6)" strokeWidth="2.5">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
-              <span
-                style={{
-                  fontSize: 11.5,
-                  color: 'rgba(200, 200, 230, 0.5)',
-                  fontFamily: 'ui-monospace, "SF Mono", monospace',
-                  letterSpacing: 0.3,
-                }}
-              >
-                {data.website}
-              </span>
-            </div>
-            {/* Current page indicator */}
-            {hasRealScreenshots && currentScreenshot && (
-              <div
-                style={{
-                  padding: '3px 10px',
-                  borderRadius: 6,
-                  background: 'rgba(99, 102, 241, 0.15)',
-                  border: '1px solid rgba(99, 102, 241, 0.2)',
-                  fontSize: 10,
-                  color: 'rgba(165, 165, 220, 0.8)',
-                  fontFamily: 'system-ui, sans-serif',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.5,
-                }}
-              >
-                {pageLabels[currentScreenshot.type] || currentScreenshot.type}
-              </div>
-            )}
+        <div style={{
+          width: 680,
+          borderRadius: '12px 12px 0 0',
+          background: 'linear-gradient(180deg, #1a1a2e 0%, #16162a 100%)',
+          padding: '10px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          boxShadow: '0 -2px 20px rgba(0,0,0,0.3)',
+        }}>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57' }} />
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#febc2e' }} />
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#28c840' }} />
           </div>
-
-          {/* Content area */}
-          <div
-            style={{
-              width: '100%',
-              height: 'calc(100% - 42px)',
-              position: 'relative',
-              overflow: 'hidden',
-              background: '#0a0a1a',
-            }}
-          >
-            {hasRealScreenshots && currentScreenshot ? (
-              <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-                <Img
-                  src={currentScreenshot.file_url}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    objectPosition: 'top center',
-                    opacity: screenshotOpacity,
-                  }}
-                />
-                {/* Bottom fade to hide white edge from screenshots */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    height: 40,
-                    background: 'linear-gradient(transparent, #0a0a1a)',
-                    zIndex: 2,
-                  }}
-                />
-                {/* Scan line effect over real screenshot */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: 3,
-                    background: 'linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.5), transparent)',
-                    transform: `translateY(${interpolate(frame % 90, [0, 90], [0, 430])}px)`,
-                    opacity: frame > 30 && frame < 180 ? 0.3 : 0,
-                    boxShadow: '0 0 30px rgba(99, 102, 241, 0.2)',
-                  }}
-                />
-              </div>
-            ) : (
-              <div
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  background: 'linear-gradient(180deg, rgba(15, 15, 40, 1) 0%, rgba(20, 20, 50, 1) 100%)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  position: 'relative',
-                }}
-              >
-                {/* Simulated website fallback */}
-                <div style={{ width: '80%', display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center' }}>
-                  <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 0 12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {data.logoUrl && (
-                        <img src={data.logoUrl} alt="" style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover' }} />
-                      )}
-                      <span style={{ fontSize: 16, fontWeight: 700, color: 'white', fontFamily: 'system-ui, sans-serif' }}>
-                        {data.companyName}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', gap: 16 }}>
-                      {['Features', 'Pricing', 'Docs'].map((item) => (
-                        <span key={item} style={{ fontSize: 12, color: 'rgba(180,180,210,0.5)', fontFamily: 'system-ui, sans-serif' }}>
-                          {item}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'center', padding: '30px 0' }}>
-                    <div style={{ fontSize: 28, fontWeight: 800, color: 'white', fontFamily: 'system-ui, sans-serif', marginBottom: 8 }}>
-                      {data.companyName}
-                    </div>
-                    <div style={{ fontSize: 14, color: 'rgba(180,180,210,0.6)', fontFamily: 'system-ui, sans-serif', maxWidth: 400 }}>
-                      {data.tagline || data.descriptionShort}
-                    </div>
-                    <div
-                      style={{
-                        marginTop: 20,
-                        display: 'inline-block',
-                        padding: '8px 24px',
-                        borderRadius: 8,
-                        background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                        color: 'white',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        fontFamily: 'system-ui, sans-serif',
-                      }}
-                    >
-                      Get Started
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-                    {data.categories.slice(0, 3).map((cat, i) => (
-                      <span
-                        key={i}
-                        style={{
-                          padding: '4px 12px',
-                          borderRadius: 12,
-                          background: 'rgba(99, 102, 241, 0.1)',
-                          border: '1px solid rgba(99, 102, 241, 0.15)',
-                          fontSize: 11,
-                          color: 'rgba(165, 165, 220, 0.7)',
-                          fontFamily: 'system-ui, sans-serif',
-                        }}
-                      >
-                        {cat}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Scan line effect */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: 2,
-                    background: 'linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.6), transparent)',
-                    transform: `translateY(${interpolate(frame % 120, [0, 120], [0, 400])}px)`,
-                    opacity: frame > 40 && frame < 160 ? 0.4 : 0,
-                    boxShadow: '0 0 20px rgba(99, 102, 241, 0.3)',
-                  }}
-                />
-              </div>
-            )}
+          <div style={{
+            flex: 1,
+            background: 'rgba(255,255,255,0.06)',
+            borderRadius: 6,
+            padding: '5px 12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="m15 9-6 6M9 9l6 6" /></svg>
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', fontFamily: 'monospace' }}>
+              {data.website}
+            </span>
           </div>
         </div>
 
-        {/* Browser reflection */}
-        <div
-          style={{
+        {/* Browser content area */}
+        <div style={{
+          width: 680,
+          height: 380,
+          background: '#0a0a1a',
+          borderRadius: '0 0 12px 12px',
+          overflow: 'hidden',
+          position: 'relative',
+          boxShadow: '0 40px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04)',
+        }}>
+          {hasReal && currentSS ? (
+            <Img
+              src={currentSS.file_url}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                opacity: ssOpacity,
+              }}
+            />
+          ) : (
+            <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #0f0f2a 0%, #1a1a3e 50%, #0f0f2a 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ fontSize: 48, fontWeight: 800, color: 'rgba(255,255,255,0.1)', fontFamily: 'system-ui, sans-serif' }}>{data.companyName}</div>
+            </div>
+          )}
+
+          {/* Cursor */}
+          <div style={{
             position: 'absolute',
-            bottom: -60,
-            left: 20,
-            right: 20,
+            left: cursorX,
+            top: cursorY,
+            opacity: cursorOpacity,
+            zIndex: 20,
+            pointerEvents: 'none',
+            transition: 'none',
+          }}>
+            <svg width="20" height="24" viewBox="0 0 20 24" fill="none">
+              <path d="M1 1L1 18L6 13L12 22L15 20L9 11L16 10L1 1Z" fill="white" stroke="rgba(0,0,0,0.5)" strokeWidth="1.5" />
+            </svg>
+          </div>
+
+          {/* Click ripples */}
+          {clickRipples.map((r) => (
+            <div key={r.i} style={{
+              position: 'absolute',
+              left: r.x - 15,
+              top: r.y - 15,
+              width: 30,
+              height: 30,
+              borderRadius: '50%',
+              border: '2px solid rgba(139, 92, 246, 0.8)',
+              opacity: r.opacity,
+              transform: `scale(${1 + r.scale})`,
+              pointerEvents: 'none',
+            }} />
+          ))}
+
+          {/* Dark overlay at bottom for brand consistency */}
+          <div style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
             height: 60,
-            background: 'linear-gradient(to bottom, rgba(99, 102, 241, 0.05), transparent)',
-            borderRadius: '0 0 12px 12px',
-            filter: 'blur(8px)',
-            transform: 'scaleY(-0.3)',
-          }}
-        />
-      </div>
+            background: 'linear-gradient(transparent, rgba(10,10,26,0.95))',
+          }} />
 
-      {/* Floating annotation badges */}
-      {annotations.map((ann, i) => {
-        const annProgress = spring({
-          frame: frame - ann.delay,
-          fps,
-          config: { damping: 14, mass: 0.5, stiffness: 100 },
-        });
-        const annOpacity = interpolate(Math.max(0, annProgress), [0, 1], [0, 1]);
-        const annScale = interpolate(Math.max(0, annProgress), [0, 1], [0.6, 1]);
-        const annX = interpolate(Math.max(0, annProgress), [0, 1], [i % 2 === 0 ? -30 : 30, 0]);
-        const floatAnnY = Math.sin(frame * 0.03 + i * 1.5) * 4;
-
-        return (
-          <div
-            key={i}
-            style={{
+          {/* Page label */}
+          {hasReal && currentSS && (
+            <div style={{
               position: 'absolute',
-              left: `calc(50% + ${ann.x}px)`,
-              top: `calc(50% + ${ann.y + 10}px)`,
-              opacity: annOpacity,
-              transform: `scale(${annScale}) translateX(${annX}px) translateY(${floatAnnY}px)`,
-              zIndex: 15,
-            }}
-          >
-            <div
-              style={{
-                padding: '8px 18px',
-                borderRadius: 12,
-                background: 'rgba(99, 102, 241, 0.12)',
-                backdropFilter: 'blur(12px)',
-                border: '1px solid rgba(99, 102, 241, 0.2)',
-                color: 'rgba(200, 200, 240, 0.9)',
-                fontSize: 13,
-                fontWeight: 600,
-                fontFamily: 'system-ui, -apple-system, sans-serif',
-                whiteSpace: 'nowrap',
-                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              <div
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  background: '#818cf8',
-                  boxShadow: '0 0 8px rgba(129, 140, 248, 0.5)',
-                }}
-              />
-              {ann.text}
+              bottom: 10,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              padding: '4px 16px',
+              borderRadius: 20,
+              background: 'rgba(255,255,255,0.08)',
+              fontSize: 12,
+              color: 'rgba(255,255,255,0.5)',
+              fontFamily: 'system-ui, sans-serif',
+            }}>
+              {pageLabels[currentSS.type] || currentSS.type}
             </div>
-          </div>
-        );
-      })}
+          )}
+        </div>
 
-      {/* Floating tech badges */}
-      {badges.map((badge, i) => {
-        const badgeProgress = spring({
-          frame: frame - badge.delay,
-          fps,
-          config: { damping: 14, mass: 0.5, stiffness: 90 },
-        });
-        const badgeOpacity = interpolate(Math.max(0, badgeProgress), [0, 1], [0, 0.8]);
-        const badgeY = interpolate(Math.max(0, badgeProgress), [0, 1], [15, 0]);
-        const floatBadgeY = Math.sin(frame * 0.025 + i * 2) * 3;
-
-        return (
-          <div
-            key={i}
-            style={{
-              position: 'absolute',
-              left: `calc(50% + ${badge.x}px)`,
-              top: `calc(50% + ${badge.y}px)`,
-              opacity: badgeOpacity,
-              transform: `translateY(${badgeY + floatBadgeY}px)`,
-              zIndex: 12,
-            }}
-          >
-            <div
-              style={{
-                padding: '5px 12px',
-                borderRadius: 8,
-                background: `${badge.color}15`,
-                border: `1px solid ${badge.color}30`,
-                color: badge.color,
-                fontSize: 11,
-                fontWeight: 600,
-                fontFamily: 'ui-monospace, "SF Mono", monospace',
-                letterSpacing: 0.5,
-              }}
-            >
-              {badge.text}
-            </div>
-          </div>
-        );
-      })}
-
-      {/* Thumbnail strip at bottom */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 40,
-          display: 'flex',
-          gap: 20,
-          zIndex: 10,
-        }}
-      >
-        {['Homepage', 'Features', 'Pricing'].map((label, i) => {
-          const thumbProgress = spring({
-            frame: frame - thumbStartFrame - i * 10,
-            fps,
-            config: { damping: 14, stiffness: 100 },
-          });
-          const thumbOpacity = interpolate(Math.max(0, thumbProgress), [0, 1], [0, 1]);
-          const thumbY = interpolate(Math.max(0, thumbProgress), [0, 1], [20, 0]);
-          const thumbScale = interpolate(Math.max(0, thumbProgress), [0, 1], [0.8, 1]);
-          const isActive = hasRealScreenshots && currentScreenshot?.type === screenshots[i]?.type;
-
+        {/* Annotation callouts */}
+        {annotations.map((ann, i) => {
+          const annProgress = spring({ frame: frame - 50 - i * 15, fps, config: { damping: 14, stiffness: 90 } });
+          const pos = annotPositions[i];
+          const annFloat = Math.sin(frame * 0.03 + i * 1.5) * 4;
           return (
             <div
               key={i}
               style={{
-                opacity: thumbOpacity,
-                transform: `translateY(${thumbY}px) scale(${thumbScale})`,
+                position: 'absolute',
+                left: `calc(50% + ${pos.x}px)`,
+                top: `calc(50% + ${pos.y + annFloat}px)`,
+                padding: '8px 16px',
+                borderRadius: 10,
+                background: 'rgba(99, 102, 241, 0.12)',
+                border: '1px solid rgba(99, 102, 241, 0.25)',
+                backdropFilter: 'blur(8px)',
+                opacity: Math.max(0, annProgress),
+                transform: `scale(${interpolate(Math.max(0, annProgress), [0, 1], [0.7, 1])})`,
                 display: 'flex',
-                flexDirection: 'column',
                 alignItems: 'center',
-                gap: 8,
+                gap: 6,
+                zIndex: 15,
               }}
             >
-              <div
-                style={{
-                  width: 150,
-                  height: 85,
-                  borderRadius: 10,
-                  overflow: 'hidden',
-                  background: i === 0
-                    ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.1))'
-                    : i === 1
-                    ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(99, 102, 241, 0.1))'
-                    : 'linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(6, 182, 212, 0.1))',
-                  border: isActive
-                    ? '2px solid rgba(99, 102, 241, 0.6)'
-                    : `1px solid ${i === 0 ? 'rgba(99, 102, 241, 0.2)' : i === 1 ? 'rgba(59, 130, 246, 0.2)' : 'rgba(34, 197, 94, 0.2)'}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: isActive
-                    ? '0 4px 24px rgba(99, 102, 241, 0.2), 0 0 0 1px rgba(99,102,241,0.1)'
-                    : '0 4px 16px rgba(0, 0, 0, 0.2)',
-                  transition: 'border-color 0.3s',
-                }}
-              >
-                {screenshots[i]?.file_url && screenshots[i].file_url.startsWith('http') ? (
-                  <Img
-                    src={screenshots[i].file_url}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                ) : (
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(180,180,210,0.3)" strokeWidth="1.5">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                    <circle cx="8.5" cy="8.5" r="1.5" />
-                    <path d="m21 15-5-5L5 21" />
-                  </svg>
-                )}
-              </div>
-              <span
-                style={{
-                  fontSize: 12,
-                  color: isActive ? 'rgba(129, 140, 248, 0.9)' : 'rgba(180, 180, 210, 0.6)',
-                  fontWeight: isActive ? 700 : 500,
-                  fontFamily: 'system-ui, -apple-system, sans-serif',
-                }}
-              >
-                {label}
-              </span>
+              <span style={{ fontSize: 16 }}>{ann.emoji}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.85)', fontFamily: 'system-ui, sans-serif' }}>{ann.text}</span>
             </div>
           );
         })}
       </div>
+
+      {/* Thumbnail strip */}
+      {hasReal && (
+        <div style={{
+          display: 'flex',
+          gap: 12,
+          marginTop: 20,
+          position: 'relative',
+          zIndex: 5,
+        }}>
+          {screenshots.slice(0, 3).map((ss, i) => {
+            const thumbProgress = spring({ frame: frame - 120 - i * 10, fps, config: { damping: 16, stiffness: 90 } });
+            const isActive = i === currentIdx;
+            return (
+              <div key={i} style={{
+                width: 100,
+                height: 60,
+                borderRadius: 8,
+                overflow: 'hidden',
+                opacity: Math.max(0, thumbProgress),
+                transform: `scale(${interpolate(Math.max(0, thumbProgress), [0, 1], [0.7, 1])})`,
+                border: isActive ? '2px solid rgba(139, 92, 246, 0.6)' : '1px solid rgba(255,255,255,0.08)',
+                boxShadow: isActive ? '0 0 15px rgba(139, 92, 246, 0.3)' : 'none',
+              }}>
+                <Img src={ss.file_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <div style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  padding: '2px 0',
+                  textAlign: 'center',
+                  fontSize: 9,
+                  color: 'rgba(255,255,255,0.6)',
+                  background: 'rgba(0,0,0,0.6)',
+                  fontFamily: 'system-ui, sans-serif',
+                }}>
+                  {pageLabels[ss.type] || ss.type}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
