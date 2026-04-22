@@ -199,6 +199,51 @@ export async function submissionRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ kit });
   });
 
+  // In-memory cache for scraped website content (keyed by company_id)
+  const websiteCache = new Map<string, { content: string; timestamp: number }>();
+  const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+  async function scrapeWebsite(url: string): Promise<string> {
+    const pagesToScrape = [url];
+    const contactPaths = ['/contact', '/contact-us', '/about', '/about-us', '/support'];
+    for (const path of contactPaths) {
+      try {
+        const fullUrl = new URL(path, url).href;
+        pagesToScrape.push(fullUrl);
+      } catch { /* ignore bad URLs */ }
+    }
+
+    const results: string[] = [];
+    const scrapePromises = pagesToScrape.map(async (pageUrl) => {
+      try {
+        const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${env.FIRECRAWL_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            url: pageUrl,
+            formats: ['markdown'],
+          }),
+        });
+        if (response.ok) {
+          const data = await response.json() as { success: boolean; data?: { markdown?: string } };
+          if (data.success && data.data?.markdown) {
+            return `--- PAGE: ${pageUrl} ---\n${data.data.markdown.slice(0, 8000)}`;
+          }
+        }
+      } catch { /* ignore individual page failures */ }
+      return null;
+    });
+
+    const scraped = await Promise.all(scrapePromises);
+    for (const s of scraped) {
+      if (s) results.push(s);
+    }
+    return results.join('\n\n');
+  }
+
   app.post<{
     Params: { id: string };
     Body: { question: string; history?: Array<{ role: string; content: string }> };
@@ -255,8 +300,25 @@ export async function submissionRoutes(app: FastifyInstance): Promise<void> {
     let socialLinks: Record<string, string> = {};
     try { socialLinks = JSON.parse(submission.company_social_links || '{}'); } catch { /* ignore */ }
 
+    // Scrape the live website (with caching)
+    let websiteContent = '';
+    const cacheKey = submission.company_id;
+    const cached = websiteCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      websiteContent = cached.content;
+    } else if (env.FIRECRAWL_API_KEY && submission.company_website) {
+      try {
+        websiteContent = await scrapeWebsite(submission.company_website);
+        if (websiteContent) {
+          websiteCache.set(cacheKey, { content: websiteContent, timestamp: Date.now() });
+        }
+      } catch {
+        // Continue without scraped content
+      }
+    }
+
     const companyContext = `
-COMPANY INFORMATION:
+COMPANY INFORMATION (from database):
 - Name: ${submission.company_name}
 - Website: ${submission.company_website}
 - Contact Email: ${submission.company_email}
@@ -275,20 +337,25 @@ DIRECTORY BEING SUBMITTED TO:
 - Submission Type: ${submission.submission_type}
 `.trim();
 
-    const systemPrompt = `You are a helpful assistant for filling out directory submission forms. You have complete knowledge about the company being submitted and the directory it's being submitted to.
+    const websiteSection = websiteContent
+      ? `\n\nLIVE WEBSITE CONTENT (scraped from ${submission.company_website}):\n${websiteContent.slice(0, 25000)}`
+      : '';
 
-${companyContext}
+    const systemPrompt = `You are a smart AI assistant for filling out directory submission forms. You have complete knowledge about the company — both from our database AND from a live scrape of their website.
 
-Your job is to help the user fill out any form fields they encounter on the directory submission page. When asked about specific form fields:
-- Provide accurate, copy-ready answers based on the company data above
-- If a field asks for something not in the data (like phone number), honestly say the data doesn't include it and suggest what they could put
-- Keep answers concise and appropriate for form fields (not essay-length unless asked)
-- If asked to rewrite or adjust content, do so while keeping it accurate to the company
-- Format your response as plain text ready to copy-paste into a form field, unless the user asks for explanation`;
+${companyContext}${websiteSection}
+
+IMPORTANT INSTRUCTIONS:
+- You have access to the FULL website content above. Extract any information the user asks for (phone numbers, addresses, team members, founding dates, office locations, etc.) directly from the scraped content.
+- Always provide copy-ready answers that can be pasted directly into form fields.
+- If the information genuinely doesn't exist anywhere in the data or website content, say so clearly.
+- Keep answers concise and appropriate for form fields (not essay-length unless asked).
+- If asked to rewrite or adjust content, do so while keeping it accurate to the company.
+- When providing phone numbers, addresses, or specific factual data, extract it exactly as shown on the website.`;
 
     const messages: Array<{ role: string; content: string }> = [
       { role: 'user', content: systemPrompt },
-      { role: 'assistant', content: 'Understood. I have full context about the company and directory. Ask me anything about the submission form fields and I\'ll provide copy-ready answers.' },
+      { role: 'assistant', content: 'I have full context about the company from both the database and a live scrape of the website. I can provide any details including phone numbers, addresses, team info, and more. Ask me anything!' },
     ];
 
     if (history && Array.isArray(history)) {

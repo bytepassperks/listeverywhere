@@ -546,7 +546,7 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
                         {aiLoading && (
                           <div className="flex justify-start">
                             <div className="rounded-xl px-3 py-2 text-sm" style={{ background: 'var(--secondary)', color: 'var(--muted-foreground)' }}>
-                              Thinking...
+                              {aiMessages.length === 1 ? '🔍 Scraping website & analyzing...' : '💭 Thinking...'}
                             </div>
                           </div>
                         )}
