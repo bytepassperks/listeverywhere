@@ -116,6 +116,110 @@ CREATE TABLE IF NOT EXISTS directory_candidates (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- ============================================
+-- INDEXER MODULE TABLES
+-- ============================================
+
+-- Indexer Projects (websites connected for indexing)
+CREATE TABLE IF NOT EXISTS indexer_projects (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  domain VARCHAR(500) NOT NULL,
+  sitemap_url TEXT,
+  gsc_property_id VARCHAR(500),
+  gsc_access_token TEXT,
+  gsc_refresh_token TEXT,
+  indexnow_key VARCHAR(255),
+  auto_index BOOLEAN DEFAULT true,
+  sync_frequency VARCHAR(50) DEFAULT 'daily' CHECK (sync_frequency IN ('hourly', 'twice_daily', 'daily')),
+  last_sitemap_sync TIMESTAMP WITH TIME ZONE,
+  last_index_check TIMESTAMP WITH TIME ZONE,
+  total_urls INTEGER DEFAULT 0,
+  indexed_count INTEGER DEFAULT 0,
+  not_indexed_count INTEGER DEFAULT 0,
+  status VARCHAR(50) DEFAULT 'active' CHECK (status IN ('active', 'paused', 'error')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexer URLs (individual URLs tracked per project)
+CREATE TABLE IF NOT EXISTS indexer_urls (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES indexer_projects(id) ON DELETE CASCADE,
+  url TEXT NOT NULL,
+  index_status VARCHAR(50) DEFAULT 'unknown' CHECK (index_status IN (
+    'unknown', 'indexed', 'not_indexed', 'crawled_not_indexed',
+    'discovered_not_crawled', 'submitted', 'error'
+  )),
+  last_checked TIMESTAMP WITH TIME ZONE,
+  last_submitted TIMESTAMP WITH TIME ZONE,
+  last_crawled TIMESTAMP WITH TIME ZONE,
+  submit_count INTEGER DEFAULT 0,
+  source VARCHAR(50) DEFAULT 'sitemap' CHECK (source IN ('sitemap', 'gsc', 'manual', 'crawler')),
+  canonical_url TEXT,
+  error_detail TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(project_id, url)
+);
+
+-- Indexer Submission Queue (URLs queued for indexing submission)
+CREATE TABLE IF NOT EXISTS indexer_queue (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  url_id UUID NOT NULL REFERENCES indexer_urls(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES indexer_projects(id) ON DELETE CASCADE,
+  method VARCHAR(50) NOT NULL CHECK (method IN ('gsc_api', 'indexnow', 'ping', 'sitemap_refresh')),
+  status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+  retry_count INTEGER DEFAULT 0,
+  max_retries INTEGER DEFAULT 3,
+  scheduled_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  processed_at TIMESTAMP WITH TIME ZONE,
+  error TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Backlink Endpoints (database of sites that create backlinks when you submit URL)
+CREATE TABLE IF NOT EXISTS backlink_endpoints (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(500),
+  url_template TEXT NOT NULL,
+  category VARCHAR(100) DEFAULT 'general' CHECK (category IN (
+    'whois', 'seo_analyzer', 'speed_test', 'security_scan',
+    'web_archive', 'ping_service', 'directory', 'social_bookmark',
+    'website_info', 'dns_lookup', 'general'
+  )),
+  domain_authority INTEGER,
+  is_dofollow BOOLEAN DEFAULT false,
+  active BOOLEAN DEFAULT true,
+  last_verified TIMESTAMP WITH TIME ZONE,
+  success_rate REAL DEFAULT 0,
+  avg_response_ms INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Backlink Results (tracking backlinks created for user's URLs)
+CREATE TABLE IF NOT EXISTS backlink_results (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES indexer_projects(id) ON DELETE CASCADE,
+  endpoint_id UUID NOT NULL REFERENCES backlink_endpoints(id) ON DELETE CASCADE,
+  target_url TEXT NOT NULL,
+  backlink_url TEXT,
+  status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'submitted', 'verified', 'dead', 'error')),
+  http_status INTEGER,
+  submitted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  verified_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexer Activity Log
+CREATE TABLE IF NOT EXISTS indexer_activity_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES indexer_projects(id) ON DELETE CASCADE,
+  action VARCHAR(100) NOT NULL,
+  details JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_companies_user_id ON companies(user_id);
 CREATE INDEX IF NOT EXISTS idx_submissions_company_id ON submissions(company_id);
@@ -124,6 +228,18 @@ CREATE INDEX IF NOT EXISTS idx_submissions_status ON submissions(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_job_type ON jobs(job_type);
 CREATE INDEX IF NOT EXISTS idx_screenshots_company_id ON screenshots(company_id);
+
+-- Indexer indexes
+CREATE INDEX IF NOT EXISTS idx_indexer_projects_user_id ON indexer_projects(user_id);
+CREATE INDEX IF NOT EXISTS idx_indexer_urls_project_id ON indexer_urls(project_id);
+CREATE INDEX IF NOT EXISTS idx_indexer_urls_index_status ON indexer_urls(index_status);
+CREATE INDEX IF NOT EXISTS idx_indexer_queue_status ON indexer_queue(status);
+CREATE INDEX IF NOT EXISTS idx_indexer_queue_project_id ON indexer_queue(project_id);
+CREATE INDEX IF NOT EXISTS idx_backlink_endpoints_active ON backlink_endpoints(active);
+CREATE INDEX IF NOT EXISTS idx_backlink_endpoints_category ON backlink_endpoints(category);
+CREATE INDEX IF NOT EXISTS idx_backlink_results_project_id ON backlink_results(project_id);
+CREATE INDEX IF NOT EXISTS idx_backlink_results_status ON backlink_results(status);
+CREATE INDEX IF NOT EXISTS idx_indexer_activity_log_project_id ON indexer_activity_log(project_id);
 `;
 
 export async function runMigrations() {

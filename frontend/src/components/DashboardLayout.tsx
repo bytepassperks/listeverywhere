@@ -9,6 +9,7 @@ const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: '🏠' },
   { href: '/dashboard/submissions', label: 'Submissions', icon: '📤' },
   { href: '/dashboard/directories', label: 'Directories', icon: '📂' },
+  { href: '/dashboard/indexer', label: 'Indexer', icon: '🔍' },
   { href: '/dashboard/bulk', label: 'Bulk Upload', icon: '📦' },
   { href: '/dashboard/demo-video', label: 'Demo Video', icon: '🎬' },
 ];

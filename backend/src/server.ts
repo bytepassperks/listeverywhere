@@ -10,6 +10,7 @@ import { directoryRoutes } from './routes/directories';
 import { bulkUploadRoutes } from './routes/bulkUpload';
 import { jobRoutes } from './routes/jobs';
 import { demoVideoRoutes } from './routes/demoVideo';
+import { indexerRoutes } from './routes/indexer';
 import path from 'path';
 import fs from 'fs';
 import { runMigrations } from './db/migrate';
@@ -82,6 +83,7 @@ async function buildApp() {
   await app.register(bulkUploadRoutes);
   await app.register(jobRoutes);
   await app.register(demoVideoRoutes);
+  await app.register(indexerRoutes);
 
   const videosDir = path.join(env.SCREENSHOTS_DIR, 'videos');
   if (!fs.existsSync(videosDir)) {

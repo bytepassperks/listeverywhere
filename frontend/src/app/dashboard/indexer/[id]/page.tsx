@@ -1,0 +1,605 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { api, IndexerProject, IndexerUrl, IndexerActivity, BacklinkResult } from '@/lib/api';
+
+type Tab = 'urls' | 'backlinks' | 'activity';
+
+export default function IndexerProjectPage() {
+  const params = useParams();
+  const router = useRouter();
+  const projectId = params.id as string;
+
+  const [project, setProject] = useState<IndexerProject | null>(null);
+  const [urlStats, setUrlStats] = useState<Array<{ index_status: string; count: string }>>([]);
+  const [activity, setActivity] = useState<IndexerActivity[]>([]);
+  const [urls, setUrls] = useState<IndexerUrl[]>([]);
+  const [urlStatusCounts, setUrlStatusCounts] = useState<Record<string, number>>({});
+  const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 0 });
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<Tab>('urls');
+
+  // Backlinks state
+  const [backlinks, setBacklinks] = useState<BacklinkResult[]>([]);
+  const [backlinkPagination, setBacklinkPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 0 });
+  const [backlinkStats, setBacklinkStats] = useState<{ total: number; submitted: number; verified: number; dead: number; byCategory: Record<string, number> } | null>(null);
+
+  // Action states
+  const [syncing, setSyncing] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [submittingIndexNow, setSubmittingIndexNow] = useState(false);
+  const [submittingPing, setSubmittingPing] = useState(false);
+  const [buildingBacklinks, setBuildingBacklinks] = useState(false);
+  const [actionResult, setActionResult] = useState<string | null>(null);
+
+  // Add URLs modal
+  const [showAddUrls, setShowAddUrls] = useState(false);
+  const [newUrlsText, setNewUrlsText] = useState('');
+
+  const loadProject = useCallback(async () => {
+    try {
+      const data = await api.getIndexerProject(projectId);
+      setProject(data.project);
+      setUrlStats(data.urlStats);
+      setActivity(data.activity);
+    } catch {
+      router.push('/dashboard/indexer');
+    }
+  }, [projectId, router]);
+
+  const loadUrls = useCallback(async (page = 1) => {
+    try {
+      const data = await api.getIndexerUrls(projectId, page, 50, statusFilter, searchQuery);
+      setUrls(data.urls);
+      setUrlStatusCounts(data.statusCounts);
+      setPagination(data.pagination);
+    } catch (err) {
+      console.error('Failed to load URLs:', err);
+    }
+  }, [projectId, statusFilter, searchQuery]);
+
+  const loadBacklinks = useCallback(async (page = 1) => {
+    try {
+      const [blData, statsData] = await Promise.all([
+        api.getBacklinks(projectId, page),
+        api.getBacklinkStats(projectId),
+      ]);
+      setBacklinks(blData.backlinks);
+      setBacklinkPagination(blData.pagination);
+      setBacklinkStats(statsData);
+    } catch (err) {
+      console.error('Failed to load backlinks:', err);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    async function init() {
+      setLoading(true);
+      await loadProject();
+      setLoading(false);
+    }
+    init();
+  }, [loadProject]);
+
+  useEffect(() => {
+    if (!loading) loadUrls();
+  }, [loading, statusFilter, searchQuery, loadUrls]);
+
+  useEffect(() => {
+    if (!loading && activeTab === 'backlinks') loadBacklinks();
+  }, [loading, activeTab, loadBacklinks]);
+
+  function showResult(msg: string) {
+    setActionResult(msg);
+    setTimeout(() => setActionResult(null), 5000);
+  }
+
+  async function handleSyncSitemap() {
+    setSyncing(true);
+    try {
+      const result = await api.syncSitemap(projectId);
+      showResult(`Sitemap synced: ${result.added} new URLs added (${result.total} total in sitemap)`);
+      await Promise.all([loadProject(), loadUrls()]);
+    } catch (err) {
+      showResult(`Error: ${err instanceof Error ? err.message : 'Sync failed'}`);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function handleCheckIndex() {
+    setChecking(true);
+    try {
+      const result = await api.checkIndexStatus(projectId, undefined, true);
+      showResult(`Checked ${result.checked} URLs: ${result.indexed} indexed, ${result.notIndexed} not indexed`);
+      await Promise.all([loadProject(), loadUrls()]);
+    } catch (err) {
+      showResult(`Error: ${err instanceof Error ? err.message : 'Check failed'}`);
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  async function handleSubmitIndexNow() {
+    setSubmittingIndexNow(true);
+    try {
+      const result = await api.submitIndexNow(projectId, undefined, true);
+      showResult(`IndexNow: Submitted ${result.submitted} URLs to Bing/Yandex. ${result.errors.length ? `Errors: ${result.errors.length}` : ''}`);
+      await loadProject();
+    } catch (err) {
+      showResult(`Error: ${err instanceof Error ? err.message : 'Submit failed'}`);
+    } finally {
+      setSubmittingIndexNow(false);
+    }
+  }
+
+  async function handleSubmitPing() {
+    setSubmittingPing(true);
+    try {
+      const result = await api.submitPing(projectId);
+      showResult(`Pinged: ${result.sitemap_pinged} sitemap pings, ${result.urls_pinged} URL pings`);
+      await loadProject();
+    } catch (err) {
+      showResult(`Error: ${err instanceof Error ? err.message : 'Ping failed'}`);
+    } finally {
+      setSubmittingPing(false);
+    }
+  }
+
+  async function handleBuildBacklinks() {
+    setBuildingBacklinks(true);
+    try {
+      const result = await api.buildBacklinks(projectId);
+      showResult(`Backlinks: ${result.submitted} submitted. ${result.errors.length ? `${result.errors.length} errors.` : ''}`);
+      await loadBacklinks();
+    } catch (err) {
+      showResult(`Error: ${err instanceof Error ? err.message : 'Build failed'}`);
+    } finally {
+      setBuildingBacklinks(false);
+    }
+  }
+
+  async function handleAddUrls() {
+    const urlList = newUrlsText.split('\n').map(u => u.trim()).filter(Boolean);
+    if (urlList.length === 0) return;
+    try {
+      const result = await api.addIndexerUrls(projectId, urlList);
+      showResult(`Added ${result.added} URLs`);
+      setShowAddUrls(false);
+      setNewUrlsText('');
+      await Promise.all([loadProject(), loadUrls()]);
+    } catch (err) {
+      showResult(`Error: ${err instanceof Error ? err.message : 'Add failed'}`);
+    }
+  }
+
+  if (loading || !project) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+        <div style={{ color: 'var(--muted-foreground)' }}>Loading project...</div>
+      </div>
+    );
+  }
+
+  const indexRate = project.total_urls > 0 ? Math.round((project.indexed_count / project.total_urls) * 100) : 0;
+  const statusColors: Record<string, string> = {
+    indexed: '#22c55e',
+    not_indexed: '#ef4444',
+    crawled_not_indexed: '#f59e0b',
+    discovered_not_crawled: '#f97316',
+    submitted: '#6366f1',
+    unknown: '#9ca3af',
+    error: '#dc2626',
+  };
+
+  return (
+    <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+        <button onClick={() => router.push('/dashboard/indexer')} style={{
+          padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)',
+          background: 'var(--card)', color: 'var(--foreground)', cursor: 'pointer', fontSize: 13,
+        }}>
+          &larr; Back
+        </button>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>
+            {project.domain}
+          </h1>
+          <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 2 }}>
+            {project.sitemap_url || 'No sitemap'} &middot; IndexNow Key: {project.indexnow_key?.slice(0, 8)}...
+          </div>
+        </div>
+      </div>
+
+      {/* Action Result Banner */}
+      {actionResult && (
+        <div style={{
+          marginBottom: 16, padding: 12, borderRadius: 8, fontSize: 13,
+          background: actionResult.startsWith('Error') ? '#fef2f2' : '#f0fdf4',
+          color: actionResult.startsWith('Error') ? '#dc2626' : '#16a34a',
+          border: `1px solid ${actionResult.startsWith('Error') ? '#fecaca' : '#bbf7d0'}`,
+        }}>
+          {actionResult}
+        </div>
+      )}
+
+      {/* Stats Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 20 }}>
+        {[
+          { label: 'Total URLs', value: project.total_urls, color: '#6366f1' },
+          { label: 'Indexed', value: project.indexed_count, color: '#22c55e' },
+          { label: 'Not Indexed', value: project.not_indexed_count, color: '#ef4444' },
+          { label: 'Index Rate', value: `${indexRate}%`, color: '#8b5cf6' },
+          { label: 'Backlinks', value: backlinkStats?.total || 0, color: '#06b6d4' },
+        ].map((s) => (
+          <div key={s.label} style={{
+            padding: 14, borderRadius: 10, background: 'var(--card)', border: '1px solid var(--border)',
+          }}>
+            <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 2 }}>{s.label}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: s.color }}>
+              {typeof s.value === 'number' ? s.value.toLocaleString() : s.value}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Action Buttons */}
+      <div style={{
+        display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap',
+        padding: 16, borderRadius: 12, background: 'var(--card)', border: '1px solid var(--border)',
+      }}>
+        <button onClick={handleSyncSitemap} disabled={syncing} style={actionBtnStyle(syncing)}>
+          {syncing ? 'Syncing...' : '🔄 Sync Sitemap'}
+        </button>
+        <button onClick={handleCheckIndex} disabled={checking} style={actionBtnStyle(checking)}>
+          {checking ? 'Checking...' : '📊 Check Index Status'}
+        </button>
+        <button onClick={handleSubmitIndexNow} disabled={submittingIndexNow} style={actionBtnStyle(submittingIndexNow)}>
+          {submittingIndexNow ? 'Submitting...' : '⚡ Submit IndexNow'}
+        </button>
+        <button onClick={handleSubmitPing} disabled={submittingPing} style={actionBtnStyle(submittingPing)}>
+          {submittingPing ? 'Pinging...' : '📡 Ping Services'}
+        </button>
+        <button onClick={handleBuildBacklinks} disabled={buildingBacklinks} style={{
+          ...actionBtnStyle(buildingBacklinks),
+          background: buildingBacklinks ? 'var(--border)' : '#6366f1',
+          color: '#fff', border: 'none',
+        }}>
+          {buildingBacklinks ? 'Building...' : '🔗 Build Backlinks'}
+        </button>
+        <button onClick={() => setShowAddUrls(true)} style={{
+          ...actionBtnStyle(false), background: 'var(--background)',
+        }}>
+          + Add URLs
+        </button>
+      </div>
+
+      {/* Add URLs Modal */}
+      {showAddUrls && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 50,
+        }}>
+          <div style={{
+            background: 'var(--card)', borderRadius: 16, padding: 32, width: 500,
+            border: '1px solid var(--border)',
+          }}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--foreground)', marginBottom: 12 }}>Add URLs</h2>
+            <p style={{ color: 'var(--muted-foreground)', fontSize: 13, marginBottom: 12 }}>
+              One URL per line (max 1,000)
+            </p>
+            <textarea
+              value={newUrlsText}
+              onChange={(e) => setNewUrlsText(e.target.value)}
+              placeholder={'https://example.com/page1\nhttps://example.com/page2'}
+              rows={8}
+              style={{
+                width: '100%', padding: 12, borderRadius: 8, fontSize: 13, fontFamily: 'monospace',
+                border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--foreground)',
+                resize: 'vertical', boxSizing: 'border-box',
+              }}
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowAddUrls(false)} style={{
+                padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)',
+                background: 'var(--card)', color: 'var(--foreground)', cursor: 'pointer',
+              }}>Cancel</button>
+              <button onClick={handleAddUrls} style={{
+                padding: '8px 20px', borderRadius: 8, border: 'none',
+                background: 'var(--primary)', color: 'var(--primary-foreground)', fontWeight: 600, cursor: 'pointer',
+              }}>Add URLs</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border)' }}>
+        {([
+          { id: 'urls' as Tab, label: `URLs (${project.total_urls})` },
+          { id: 'backlinks' as Tab, label: `Backlinks (${backlinkStats?.total || 0})` },
+          { id: 'activity' as Tab, label: 'Activity Log' },
+        ]).map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            style={{
+              padding: '10px 20px', border: 'none', background: 'transparent', cursor: 'pointer',
+              fontSize: 14, fontWeight: 600,
+              color: activeTab === tab.id ? 'var(--primary)' : 'var(--muted-foreground)',
+              borderBottom: activeTab === tab.id ? '2px solid var(--primary)' : '2px solid transparent',
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* URLs Tab */}
+      {activeTab === 'urls' && (
+        <div>
+          {/* Status Filters */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+            {[
+              { key: 'all', label: 'All', count: Object.values(urlStatusCounts).reduce((a, b) => a + b, 0) },
+              { key: 'indexed', label: 'Indexed', count: urlStatusCounts.indexed || 0 },
+              { key: 'not_indexed', label: 'Not Indexed', count: urlStatusCounts.not_indexed || 0 },
+              { key: 'submitted', label: 'Submitted', count: urlStatusCounts.submitted || 0 },
+              { key: 'unknown', label: 'Unknown', count: urlStatusCounts.unknown || 0 },
+            ].map((f) => (
+              <button
+                key={f.key}
+                onClick={() => { setStatusFilter(f.key); setPagination(prev => ({ ...prev, page: 1 })); }}
+                style={{
+                  padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                  border: statusFilter === f.key ? '2px solid var(--primary)' : '1px solid var(--border)',
+                  background: statusFilter === f.key ? 'var(--primary)' : 'var(--card)',
+                  color: statusFilter === f.key ? 'var(--primary-foreground)' : 'var(--foreground)',
+                  cursor: 'pointer',
+                }}
+              >
+                {f.label} ({f.count})
+              </button>
+            ))}
+          </div>
+
+          {/* Search */}
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search URLs..."
+            style={{
+              width: '100%', padding: '10px 14px', borderRadius: 8, fontSize: 13,
+              border: '1px solid var(--border)', background: 'var(--background)',
+              color: 'var(--foreground)', marginBottom: 16, boxSizing: 'border-box',
+            }}
+          />
+
+          {/* URL List */}
+          <div style={{ borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden' }}>
+            {urls.length === 0 ? (
+              <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted-foreground)' }}>
+                No URLs found. Sync sitemap or add URLs manually.
+              </div>
+            ) : (
+              urls.map((url, i) => (
+                <div
+                  key={url.id}
+                  style={{
+                    padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    borderBottom: i < urls.length - 1 ? '1px solid var(--border)' : 'none',
+                    background: i % 2 === 0 ? 'var(--card)' : 'var(--background)',
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 13, color: 'var(--foreground)', whiteSpace: 'nowrap',
+                      overflow: 'hidden', textOverflow: 'ellipsis',
+                    }}>
+                      {url.url}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 2 }}>
+                      Source: {url.source} &middot; Submitted {url.submit_count}x
+                      {url.last_checked && ` · Checked ${new Date(url.last_checked).toLocaleDateString()}`}
+                    </div>
+                  </div>
+                  <span style={{
+                    padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600,
+                    background: `${statusColors[url.index_status] || '#9ca3af'}20`,
+                    color: statusColors[url.index_status] || '#9ca3af',
+                    whiteSpace: 'nowrap', marginLeft: 12,
+                  }}>
+                    {url.index_status.replace(/_/g, ' ')}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Pagination */}
+          {pagination.totalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 16 }}>
+              <button
+                onClick={() => loadUrls(pagination.page - 1)}
+                disabled={pagination.page <= 1}
+                style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--foreground)', cursor: 'pointer', opacity: pagination.page <= 1 ? 0.5 : 1 }}
+              >Previous</button>
+              <span style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>
+                Page {pagination.page} of {pagination.totalPages} ({pagination.total} total)
+              </span>
+              <button
+                onClick={() => loadUrls(pagination.page + 1)}
+                disabled={pagination.page >= pagination.totalPages}
+                style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--foreground)', cursor: 'pointer', opacity: pagination.page >= pagination.totalPages ? 0.5 : 1 }}
+              >Next</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Backlinks Tab */}
+      {activeTab === 'backlinks' && (
+        <div>
+          {/* Backlink Stats */}
+          {backlinkStats && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 20 }}>
+              {[
+                { label: 'Total', value: backlinkStats.total, color: '#6366f1' },
+                { label: 'Submitted', value: backlinkStats.submitted, color: '#f59e0b' },
+                { label: 'Verified', value: backlinkStats.verified, color: '#22c55e' },
+                { label: 'Dead', value: backlinkStats.dead, color: '#ef4444' },
+              ].map((s) => (
+                <div key={s.label} style={{
+                  padding: 14, borderRadius: 10, background: 'var(--card)', border: '1px solid var(--border)',
+                }}>
+                  <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 2 }}>{s.label}</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: s.color }}>{s.value.toLocaleString()}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Category breakdown */}
+          {backlinkStats && Object.keys(backlinkStats.byCategory).length > 0 && (
+            <div style={{
+              padding: 16, borderRadius: 12, background: 'var(--card)',
+              border: '1px solid var(--border)', marginBottom: 20,
+            }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)', marginBottom: 12 }}>By Category</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {Object.entries(backlinkStats.byCategory).map(([cat, count]) => (
+                  <span key={cat} style={{
+                    padding: '4px 12px', borderRadius: 16, fontSize: 12,
+                    background: 'var(--background)', border: '1px solid var(--border)',
+                    color: 'var(--foreground)',
+                  }}>
+                    {cat.replace(/_/g, ' ')}: <strong>{count}</strong>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Backlink List */}
+          <div style={{ borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden' }}>
+            {backlinks.length === 0 ? (
+              <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted-foreground)' }}>
+                No backlinks yet. Click &quot;Build Backlinks&quot; to start.
+              </div>
+            ) : (
+              backlinks.map((bl, i) => (
+                <div
+                  key={bl.id}
+                  style={{
+                    padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    borderBottom: i < backlinks.length - 1 ? '1px solid var(--border)' : 'none',
+                    background: i % 2 === 0 ? 'var(--card)' : 'var(--background)',
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
+                      {bl.endpoint_name}
+                    </div>
+                    <div style={{
+                      fontSize: 12, color: 'var(--muted-foreground)', marginTop: 2,
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    }}>
+                      {bl.backlink_url}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 12 }}>
+                    <span style={{
+                      padding: '2px 8px', borderRadius: 10, fontSize: 10,
+                      background: 'var(--background)', color: 'var(--muted-foreground)',
+                      border: '1px solid var(--border)',
+                    }}>
+                      {bl.endpoint_category}
+                    </span>
+                    <span style={{
+                      padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600,
+                      background: bl.status === 'submitted' ? '#fef9c3' : bl.status === 'verified' ? '#dcfce7' : '#fef2f2',
+                      color: bl.status === 'submitted' ? '#ca8a04' : bl.status === 'verified' ? '#16a34a' : '#dc2626',
+                    }}>
+                      {bl.status}
+                    </span>
+                    {bl.http_status && (
+                      <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>
+                        HTTP {bl.http_status}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {backlinkPagination.totalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 16 }}>
+              <button
+                onClick={() => loadBacklinks(backlinkPagination.page - 1)}
+                disabled={backlinkPagination.page <= 1}
+                style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--foreground)', cursor: 'pointer', opacity: backlinkPagination.page <= 1 ? 0.5 : 1 }}
+              >Previous</button>
+              <span style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>
+                Page {backlinkPagination.page} of {backlinkPagination.totalPages}
+              </span>
+              <button
+                onClick={() => loadBacklinks(backlinkPagination.page + 1)}
+                disabled={backlinkPagination.page >= backlinkPagination.totalPages}
+                style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--foreground)', cursor: 'pointer', opacity: backlinkPagination.page >= backlinkPagination.totalPages ? 0.5 : 1 }}
+              >Next</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Activity Tab */}
+      {activeTab === 'activity' && (
+        <div style={{ borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden' }}>
+          {activity.length === 0 ? (
+            <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted-foreground)' }}>
+              No activity yet.
+            </div>
+          ) : (
+            activity.map((act, i) => (
+              <div
+                key={act.id}
+                style={{
+                  padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  borderBottom: i < activity.length - 1 ? '1px solid var(--border)' : 'none',
+                  background: i % 2 === 0 ? 'var(--card)' : 'var(--background)',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
+                    {act.action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 2 }}>
+                    {JSON.stringify(act.details).slice(0, 100)}
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--muted-foreground)', whiteSpace: 'nowrap' }}>
+                  {new Date(act.created_at).toLocaleString()}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function actionBtnStyle(disabled: boolean): React.CSSProperties {
+  return {
+    padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)',
+    background: disabled ? 'var(--border)' : 'var(--card)', color: 'var(--foreground)',
+    fontSize: 13, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.6 : 1,
+    fontWeight: 500,
+  };
+}

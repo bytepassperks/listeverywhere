@@ -176,6 +176,132 @@ class ApiClient {
       body: JSON.stringify({ question, history }),
     });
   }
+
+  // ==========================================
+  // INDEXER MODULE
+  // ==========================================
+
+  async getIndexerStats() {
+    return this.request<IndexerStats>('/api/indexer/stats');
+  }
+
+  async getIndexerProjects() {
+    return this.request<{ projects: IndexerProject[] }>('/api/indexer/projects');
+  }
+
+  async getIndexerProject(id: string) {
+    return this.request<{ project: IndexerProject; urlStats: Array<{ index_status: string; count: string }>; activity: IndexerActivity[] }>(`/api/indexer/projects/${id}`);
+  }
+
+  async createIndexerProject(domain: string) {
+    return this.request<{ project: IndexerProject; sitemap_found: boolean; urls_discovered: number; indexnow_key: string }>('/api/indexer/projects', {
+      method: 'POST',
+      body: JSON.stringify({ domain }),
+    });
+  }
+
+  async deleteIndexerProject(id: string) {
+    return this.request<{ message: string }>(`/api/indexer/projects/${id}`, { method: 'DELETE' });
+  }
+
+  async getIndexerUrls(projectId: string, page: number = 1, limit: number = 50, status?: string, search?: string) {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (status && status !== 'all') params.set('status', status);
+    if (search) params.set('search', search);
+    return this.request<{
+      urls: IndexerUrl[];
+      statusCounts: Record<string, number>;
+      pagination: { page: number; limit: number; total: number; totalPages: number };
+    }>(`/api/indexer/projects/${projectId}/urls?${params.toString()}`);
+  }
+
+  async addIndexerUrls(projectId: string, urls: string[]) {
+    return this.request<{ added: number; total_submitted: number }>(`/api/indexer/projects/${projectId}/urls`, {
+      method: 'POST',
+      body: JSON.stringify({ urls }),
+    });
+  }
+
+  async syncSitemap(projectId: string) {
+    return this.request<{ message: string; added: number; total: number }>(`/api/indexer/projects/${projectId}/sync-sitemap`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async checkIndexStatus(projectId: string, urlIds?: string[], checkAll?: boolean) {
+    return this.request<{ message: string; checked: number; indexed: number; notIndexed: number }>(`/api/indexer/projects/${projectId}/check-index`, {
+      method: 'POST',
+      body: JSON.stringify({ url_ids: urlIds, check_all: checkAll }),
+    });
+  }
+
+  async submitIndexNow(projectId: string, urlIds?: string[], submitAllUnindexed?: boolean) {
+    return this.request<{ message: string; submitted: number; errors: string[] }>(`/api/indexer/projects/${projectId}/submit-indexnow`, {
+      method: 'POST',
+      body: JSON.stringify({ url_ids: urlIds, submit_all_unindexed: submitAllUnindexed }),
+    });
+  }
+
+  async submitPing(projectId: string, urlIds?: string[]) {
+    return this.request<{ message: string; sitemap_pinged: number; urls_pinged: number; errors: string[] }>(`/api/indexer/projects/${projectId}/submit-ping`, {
+      method: 'POST',
+      body: JSON.stringify({ url_ids: urlIds }),
+    });
+  }
+
+  async seedBacklinkEndpoints() {
+    return this.request<{ message: string }>('/api/indexer/backlinks/seed', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async getBacklinkEndpoints(category?: string) {
+    const params = category ? `?category=${category}` : '';
+    return this.request<{ endpoints: BacklinkEndpoint[]; total: number; byCategory: Record<string, number> }>(`/api/indexer/backlinks/endpoints${params}`);
+  }
+
+  async buildBacklinks(projectId: string, categories?: string[]) {
+    return this.request<{ message: string; submitted: number; errors: string[] }>(`/api/indexer/projects/${projectId}/build-backlinks`, {
+      method: 'POST',
+      body: JSON.stringify({ categories }),
+    });
+  }
+
+  async getBacklinkStats(projectId: string) {
+    return this.request<{ total: number; submitted: number; verified: number; dead: number; byCategory: Record<string, number> }>(`/api/indexer/projects/${projectId}/backlink-stats`);
+  }
+
+  async getBacklinks(projectId: string, page: number = 1, limit: number = 50, status?: string) {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (status && status !== 'all') params.set('status', status);
+    return this.request<{
+      backlinks: BacklinkResult[];
+      pagination: { page: number; limit: number; total: number; totalPages: number };
+    }>(`/api/indexer/projects/${projectId}/backlinks?${params.toString()}`);
+  }
+
+  async analyzeMetaTags(url: string) {
+    return this.request<MetaTagsAnalysis>('/api/indexer/tools/meta-analyzer', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    });
+  }
+
+  async checkGoogleIndex(url: string) {
+    return this.request<{ indexed: boolean; status: string }>('/api/indexer/tools/index-checker', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    });
+  }
+
+  async analyzeRobotsTxt(domain: string) {
+    return this.request<RobotsTxtAnalysis>('/api/indexer/tools/robots-analyzer', {
+      method: 'POST',
+      body: JSON.stringify({ domain }),
+    });
+  }
 }
 
 export const api = new ApiClient();
@@ -306,4 +432,127 @@ export interface Job {
   error: string | null;
   created_at: string;
   completed_at: string | null;
+}
+
+// ==========================================
+// INDEXER INTERFACES
+// ==========================================
+
+export interface IndexerStats {
+  projects: number;
+  totalUrls: number;
+  indexedUrls: number;
+  notIndexedUrls: number;
+  backlinkEndpoints: number;
+  totalBacklinks: number;
+}
+
+export interface IndexerProject {
+  id: string;
+  user_id: string;
+  domain: string;
+  sitemap_url: string | null;
+  gsc_property_id: string | null;
+  gsc_access_token: string | null;
+  gsc_refresh_token: string | null;
+  indexnow_key: string | null;
+  auto_index: boolean;
+  sync_frequency: string;
+  last_sitemap_sync: string | null;
+  last_index_check: string | null;
+  total_urls: number;
+  indexed_count: number;
+  not_indexed_count: number;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IndexerUrl {
+  id: string;
+  project_id: string;
+  url: string;
+  index_status: string;
+  last_checked: string | null;
+  last_submitted: string | null;
+  last_crawled: string | null;
+  submit_count: number;
+  source: string;
+  canonical_url: string | null;
+  error_detail: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IndexerActivity {
+  id: string;
+  project_id: string;
+  action: string;
+  details: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface BacklinkEndpoint {
+  id: string;
+  name: string;
+  url_template: string;
+  category: string;
+  domain_authority: number | null;
+  is_dofollow: boolean;
+  active: boolean;
+  success_rate: number;
+}
+
+export interface BacklinkResult {
+  id: string;
+  project_id: string;
+  endpoint_id: string;
+  target_url: string;
+  backlink_url: string | null;
+  status: string;
+  http_status: number | null;
+  submitted_at: string;
+  verified_at: string | null;
+  endpoint_name: string;
+  endpoint_category: string;
+}
+
+export interface MetaTagsAnalysis {
+  title: string;
+  description: string;
+  keywords: string;
+  ogTitle: string;
+  ogDescription: string;
+  ogImage: string;
+  ogUrl: string;
+  ogType: string;
+  twitterCard: string;
+  twitterTitle: string;
+  twitterDescription: string;
+  twitterImage: string;
+  canonical: string;
+  robots: string;
+  viewport: string;
+  charset: string;
+  favicon: string;
+  h1: string[];
+  h2: string[];
+  wordCount: number;
+  imageCount: number;
+  linkCount: number;
+  hasSSL: boolean;
+  loadTimeMs: number;
+  statusCode: number;
+  contentLength: number;
+  issues: string[];
+  score: number;
+}
+
+export interface RobotsTxtAnalysis {
+  found: boolean;
+  content: string;
+  sitemaps: string[];
+  disallowedPaths: string[];
+  allowedPaths: string[];
+  crawlDelay: number | null;
 }
