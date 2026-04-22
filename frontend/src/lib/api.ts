@@ -354,6 +354,56 @@ class ApiClient {
   async getLLMEngines() {
     return this.request<{ engines: LLMEngine[] }>('/api/indexer/llm-engines');
   }
+
+  // Alerts & Discovery
+  async getAlerts(projectId: string, unreadOnly = false) {
+    return this.request<{ alerts: IndexerAlert[]; unreadCount: number }>(
+      `/api/indexer/projects/${projectId}/alerts?unread_only=${unreadOnly}`
+    );
+  }
+
+  async markAlertRead(alertId: string) {
+    return this.request<{ message: string }>(`/api/indexer/alerts/${alertId}/read`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async markAllAlertsRead(projectId: string) {
+    return this.request<{ message: string }>(`/api/indexer/projects/${projectId}/alerts/read-all`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async getDiscoveryStats() {
+    return this.request<DiscoveryStats>('/api/indexer/discovery/stats');
+  }
+
+  async triggerDiscovery() {
+    return this.request<{ message: string }>('/api/indexer/discovery/run', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async triggerAutoSubmit(batchSize = 50) {
+    return this.request<{ message: string }>('/api/indexer/auto-submit/run', {
+      method: 'POST',
+      body: JSON.stringify({ batch_size: batchSize }),
+    });
+  }
+
+  async generateWeeklyDigest() {
+    return this.request<{ message: string }>('/api/indexer/alerts/generate-digest', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async getEndpointStats() {
+    return this.request<EndpointStats>('/api/indexer/endpoints/stats');
+  }
 }
 
 export const api = new ApiClient();
@@ -635,4 +685,29 @@ export interface LLMEngine {
   name: string;
   type: string;
   description: string;
+}
+
+export interface IndexerAlert {
+  id: string;
+  project_id: string | null;
+  type: string;
+  title: string;
+  message: string;
+  data: Record<string, unknown>;
+  read: boolean;
+  created_at: string;
+}
+
+export interface DiscoveryStats {
+  totalEndpoints: number;
+  lastDiscovery: string | null;
+  newThisWeek: number;
+  totalDiscovered: number;
+}
+
+export interface EndpointStats {
+  totalEndpoints: number;
+  byCategory: Array<{ category: string; count: string }>;
+  recentDiscoveries: Array<{ id: string; discovered_count: number; verified_count: number; added_count: number; created_at: string }>;
+  dailyGrowth: Array<{ day: string; endpoints_added: string }>;
 }

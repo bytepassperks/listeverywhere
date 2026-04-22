@@ -174,10 +174,50 @@ async function start() {
   try {
     await app.listen({ port: env.PORT, host: '0.0.0.0' });
     console.log(`Server running on port ${env.PORT}`);
+
+    // Start 6-hour background workers for endpoint discovery + auto-submit
+    startBackgroundWorkers();
   } catch (err) {
     app.log.error(err);
     process.exit(1);
   }
+}
+
+function startBackgroundWorkers() {
+  const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+  const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+  console.log('[Workers] Starting background workers (6-hour cycle)');
+
+  // Run the full cycle every 6 hours
+  setInterval(async () => {
+    try {
+      const { runFullCycle } = await import('./workers/autoSubmitWorker');
+      await runFullCycle();
+    } catch (err) {
+      console.error('[Workers] 6-hour cycle error:', err);
+    }
+  }, SIX_HOURS_MS);
+
+  // Generate weekly digest every 7 days
+  setInterval(async () => {
+    try {
+      const { generateWeeklyDigest } = await import('./workers/alertSystem');
+      await generateWeeklyDigest();
+    } catch (err) {
+      console.error('[Workers] Weekly digest error:', err);
+    }
+  }, ONE_WEEK_MS);
+
+  // Run first discovery 5 minutes after startup
+  setTimeout(async () => {
+    try {
+      const { runFullCycle } = await import('./workers/autoSubmitWorker');
+      await runFullCycle();
+    } catch (err) {
+      console.error('[Workers] Initial cycle error:', err);
+    }
+  }, 5 * 60 * 1000);
 }
 
 start();

@@ -7,6 +7,9 @@ import { buildBacklinks, getBacklinkStats, seedBacklinkEndpoints } from '../serv
 import { analyzeMetaTags, checkGoogleIndex, analyzeRobotsTxt } from '../services/seoTools';
 import { createCampaign, processCampaignBatch, getCampaigns, pauseCampaign, resumeCampaign } from '../services/dripFeedService';
 import { submitToLLMEngines, checkLLMVisibility, getLLMEngineInfo } from '../services/llmIndexingService';
+import { runDiscovery, getDiscoveryStats } from '../workers/endpointDiscoveryWorker';
+import { runAutoSubmit } from '../workers/autoSubmitWorker';
+import { getAlerts, markAlertRead, markAllAlertsRead, generateWeeklyDigest, getUnreadAlertCount } from '../workers/alertSystem';
 
 export async function indexerRoutes(app: FastifyInstance) {
   // ==========================================
@@ -642,5 +645,92 @@ export async function indexerRoutes(app: FastifyInstance) {
   // Get LLM engine info
   app.get('/api/indexer/llm-engines', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     return { engines: getLLMEngineInfo() };
+  });
+
+  // ==========================================
+  // ALERTS & DISCOVERY
+  // ==========================================
+
+  // Get alerts for a project (or global alerts)
+  app.get('/api/indexer/projects/:id/alerts', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const { unread_only } = request.query as { unread_only?: string };
+    const alerts = await getAlerts(id, unread_only === 'true');
+    const unreadCount = await getUnreadAlertCount(id);
+    return { alerts, unreadCount };
+  });
+
+  // Mark alert as read
+  app.post('/api/indexer/alerts/:alertId/read', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { alertId } = request.params as { alertId: string };
+    await markAlertRead(alertId);
+    return { message: 'Alert marked as read' };
+  });
+
+  // Mark all alerts read for a project
+  app.post('/api/indexer/projects/:id/alerts/read-all', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    await markAllAlertsRead(id);
+    return { message: 'All alerts marked as read' };
+  });
+
+  // Get discovery stats
+  app.get('/api/indexer/discovery/stats', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const stats = await getDiscoveryStats();
+    return stats;
+  });
+
+  // Trigger manual discovery run (super admin only)
+  app.post('/api/indexer/discovery/run', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    if (request.userRole !== 'super_admin') {
+      return reply.status(403).send({ error: 'Super admin access required' });
+    }
+    // Run discovery in background, return immediately
+    runDiscovery().catch(err => console.error('[Discovery] Error:', err));
+    return { message: 'Discovery started in background' };
+  });
+
+  // Trigger manual auto-submit run (super admin only)
+  app.post('/api/indexer/auto-submit/run', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    if (request.userRole !== 'super_admin') {
+      return reply.status(403).send({ error: 'Super admin access required' });
+    }
+    const { batch_size } = request.body as { batch_size?: number } || {};
+    runAutoSubmit(batch_size || 50).catch(err => console.error('[AutoSubmit] Error:', err));
+    return { message: 'Auto-submit started in background' };
+  });
+
+  // Generate weekly digest (super admin only)
+  app.post('/api/indexer/alerts/generate-digest', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    if (request.userRole !== 'super_admin') {
+      return reply.status(403).send({ error: 'Super admin access required' });
+    }
+    await generateWeeklyDigest();
+    return { message: 'Weekly digest generated' };
+  });
+
+  // Get endpoint growth stats
+  app.get('/api/indexer/endpoints/stats', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const [total, byCategory, recentDiscovery, growth] = await Promise.all([
+      pool.query('SELECT COUNT(*) FROM backlink_endpoints WHERE active = true'),
+      pool.query('SELECT category, COUNT(*) as count FROM backlink_endpoints WHERE active = true GROUP BY category ORDER BY count DESC'),
+      pool.query('SELECT * FROM indexer_discovery_log ORDER BY created_at DESC LIMIT 10'),
+      pool.query(`
+        SELECT 
+          date_trunc('day', created_at) as day,
+          COUNT(*) as endpoints_added
+        FROM backlink_endpoints 
+        WHERE created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY date_trunc('day', created_at)
+        ORDER BY day DESC
+      `),
+    ]);
+
+    return {
+      totalEndpoints: parseInt(total.rows[0].count),
+      byCategory: byCategory.rows,
+      recentDiscoveries: recentDiscovery.rows,
+      dailyGrowth: growth.rows,
+    };
   });
 }

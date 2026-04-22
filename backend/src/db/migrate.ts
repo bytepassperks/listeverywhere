@@ -252,11 +252,57 @@ CREATE TABLE IF NOT EXISTS indexer_campaign_queue (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Add discovered_by column to backlink_endpoints if not exists
+DO $$ BEGIN
+  ALTER TABLE backlink_endpoints ADD COLUMN IF NOT EXISTS discovered_by VARCHAR(255);
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+-- Add unique constraint on url_template if not exists
+DO $$ BEGIN
+  ALTER TABLE backlink_endpoints ADD CONSTRAINT backlink_endpoints_url_template_key UNIQUE (url_template);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- Endpoint Discovery Log (tracks each discovery run)
+CREATE TABLE IF NOT EXISTS indexer_discovery_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  discovered_count INTEGER DEFAULT 0,
+  verified_count INTEGER DEFAULT 0,
+  added_count INTEGER DEFAULT 0,
+  sources_checked INTEGER DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Worker Log (tracks each 6-hour cycle)
+CREATE TABLE IF NOT EXISTS indexer_worker_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  worker_type VARCHAR(100) NOT NULL,
+  details JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Alerts (weekly digest, new endpoints, auto-submit notifications)
+CREATE TABLE IF NOT EXISTS indexer_alerts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID REFERENCES indexer_projects(id) ON DELETE CASCADE,
+  type VARCHAR(100) NOT NULL,
+  title VARCHAR(500) NOT NULL,
+  message TEXT NOT NULL,
+  data JSONB DEFAULT '{}'::jsonb,
+  read BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_indexer_campaigns_project_id ON indexer_campaigns(project_id);
 CREATE INDEX IF NOT EXISTS idx_indexer_campaigns_status ON indexer_campaigns(status);
 CREATE INDEX IF NOT EXISTS idx_campaign_queue_campaign_id ON indexer_campaign_queue(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_campaign_queue_status ON indexer_campaign_queue(status);
+CREATE INDEX IF NOT EXISTS idx_indexer_alerts_project_id ON indexer_alerts(project_id);
+CREATE INDEX IF NOT EXISTS idx_indexer_alerts_read ON indexer_alerts(read);
+CREATE INDEX IF NOT EXISTS idx_indexer_discovery_log_created ON indexer_discovery_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_backlink_endpoints_url_template ON backlink_endpoints(url_template);
 CREATE INDEX IF NOT EXISTS idx_companies_user_id ON companies(user_id);
 CREATE INDEX IF NOT EXISTS idx_submissions_company_id ON submissions(company_id);
 CREATE INDEX IF NOT EXISTS idx_submissions_directory_id ON submissions(directory_id);

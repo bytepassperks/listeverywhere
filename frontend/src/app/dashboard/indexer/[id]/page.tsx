@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { api, IndexerProject, IndexerUrl, IndexerActivity, BacklinkResult, Campaign } from '@/lib/api';
+import { api, IndexerProject, IndexerUrl, IndexerActivity, BacklinkResult, Campaign, IndexerAlert, EndpointStats } from '@/lib/api';
 
-type Tab = 'urls' | 'backlinks' | 'campaigns' | 'llm' | 'activity';
+type Tab = 'urls' | 'backlinks' | 'campaigns' | 'llm' | 'alerts' | 'activity';
 
 export default function IndexerProjectPage() {
   const params = useParams();
@@ -47,6 +47,13 @@ export default function IndexerProjectPage() {
   // LLM indexing state
   const [submittingLLM, setSubmittingLLM] = useState(false);
   const [llmResults, setLlmResults] = useState<Array<{ engine: string; status: string; method: string }> | null>(null);
+
+  // Alerts & Discovery state
+  const [alerts, setAlerts] = useState<IndexerAlert[]>([]);
+  const [unreadAlertCount, setUnreadAlertCount] = useState(0);
+  const [endpointStats, setEndpointStats] = useState<EndpointStats | null>(null);
+  const [runningDiscovery, setRunningDiscovery] = useState(false);
+  const [runningAutoSubmit, setRunningAutoSubmit] = useState(false);
 
   const loadProject = useCallback(async () => {
     try {
@@ -113,6 +120,41 @@ export default function IndexerProjectPage() {
   useEffect(() => {
     if (!loading && activeTab === 'campaigns') loadCampaigns();
   }, [loading, activeTab, loadCampaigns]);
+
+  const loadAlerts = useCallback(async () => {
+    try {
+      const data = await api.getAlerts(projectId);
+      setAlerts(data.alerts);
+      setUnreadAlertCount(data.unreadCount);
+    } catch (err) {
+      console.error('Failed to load alerts:', err);
+    }
+  }, [projectId]);
+
+  const loadEndpointStats = useCallback(async () => {
+    try {
+      const data = await api.getEndpointStats();
+      setEndpointStats(data);
+    } catch (err) {
+      console.error('Failed to load endpoint stats:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!loading && activeTab === 'alerts') {
+      loadAlerts();
+      loadEndpointStats();
+    }
+  }, [loading, activeTab, loadAlerts, loadEndpointStats]);
+
+  // Load unread alert count on mount
+  useEffect(() => {
+    if (!loading) {
+      api.getAlerts(projectId).then(data => {
+        setUnreadAlertCount(data.unreadCount);
+      }).catch(() => {});
+    }
+  }, [loading, projectId]);
 
   function showResult(msg: string) {
     setActionResult(msg);
@@ -241,6 +283,50 @@ export default function IndexerProjectPage() {
       await loadCampaigns();
     } catch (err) {
       showResult(`Error: ${err instanceof Error ? err.message : 'Resume failed'}`);
+    }
+  }
+
+  async function handleRunDiscovery() {
+    setRunningDiscovery(true);
+    try {
+      await api.triggerDiscovery();
+      showResult('Endpoint discovery started in background. New endpoints will appear in a few minutes.');
+    } catch (err) {
+      showResult(`Error: ${err instanceof Error ? err.message : 'Discovery failed'}`);
+    } finally {
+      setRunningDiscovery(false);
+    }
+  }
+
+  async function handleRunAutoSubmit() {
+    setRunningAutoSubmit(true);
+    try {
+      await api.triggerAutoSubmit(100);
+      showResult('Auto-submit started in background. Submitting to all new endpoints for all projects.');
+    } catch (err) {
+      showResult(`Error: ${err instanceof Error ? err.message : 'Auto-submit failed'}`);
+    } finally {
+      setRunningAutoSubmit(false);
+    }
+  }
+
+  async function handleMarkAlertRead(alertId: string) {
+    try {
+      await api.markAlertRead(alertId);
+      setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, read: true } : a));
+      setUnreadAlertCount(prev => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error('Failed to mark alert read:', err);
+    }
+  }
+
+  async function handleMarkAllRead() {
+    try {
+      await api.markAllAlertsRead(projectId);
+      setAlerts(prev => prev.map(a => ({ ...a, read: true })));
+      setUnreadAlertCount(0);
+    } catch (err) {
+      console.error('Failed to mark all read:', err);
     }
   }
 
@@ -406,6 +492,7 @@ export default function IndexerProjectPage() {
           { id: 'backlinks' as Tab, label: `Backlinks (${backlinkStats?.total || 0})` },
           { id: 'campaigns' as Tab, label: 'Drip-Feed Campaigns' },
           { id: 'llm' as Tab, label: 'LLM Indexing' },
+          { id: 'alerts' as Tab, label: `Alerts & Discovery${unreadAlertCount > 0 ? ` (${unreadAlertCount})` : ''}` },
           { id: 'activity' as Tab, label: 'Activity Log' },
         ]).map((tab) => (
           <button
@@ -823,6 +910,131 @@ export default function IndexerProjectPage() {
               Click &quot;Submit to AI Engines&quot; to submit {project.domain} to 25+ LLM-relevant platforms.
             </div>
           )}
+        </div>
+      )}
+
+      {/* Alerts & Discovery Tab */}
+      {activeTab === 'alerts' && (
+        <div>
+          {/* Admin Controls */}
+          <div style={{
+            display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap',
+            padding: 16, borderRadius: 12, background: 'var(--card)', border: '1px solid var(--border)',
+          }}>
+            <button onClick={handleRunDiscovery} disabled={runningDiscovery} style={{
+              ...actionBtnStyle(runningDiscovery),
+              background: runningDiscovery ? 'var(--border)' : '#8b5cf6', color: '#fff', border: 'none',
+            }}>
+              {runningDiscovery ? 'Discovering...' : '🔍 Run Endpoint Discovery'}
+            </button>
+            <button onClick={handleRunAutoSubmit} disabled={runningAutoSubmit} style={{
+              ...actionBtnStyle(runningAutoSubmit),
+              background: runningAutoSubmit ? 'var(--border)' : '#06b6d4', color: '#fff', border: 'none',
+            }}>
+              {runningAutoSubmit ? 'Submitting...' : '🚀 Auto-Submit to New Endpoints'}
+            </button>
+            <button onClick={handleMarkAllRead} style={actionBtnStyle(false)}>
+              Mark All Read
+            </button>
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--muted-foreground)' }}>
+              Auto-discovery runs every 6 hours &middot; Auto-submit runs every 6 hours
+            </div>
+          </div>
+
+          {/* Endpoint Stats */}
+          {endpointStats && (
+            <div style={{ marginBottom: 20 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, color: 'var(--foreground)' }}>
+                Endpoint Database — {endpointStats.totalEndpoints.toLocaleString()} Total (Growing Every 6 Hours)
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 16 }}>
+                {endpointStats.byCategory.map((cat) => (
+                  <div key={cat.category} style={{
+                    padding: 12, borderRadius: 8, background: 'var(--card)', border: '1px solid var(--border)',
+                  }}>
+                    <div style={{ fontSize: 11, color: 'var(--muted-foreground)', textTransform: 'capitalize' }}>
+                      {cat.category.replace(/_/g, ' ')}
+                    </div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: '#6366f1' }}>
+                      {parseInt(cat.count).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Recent Discoveries */}
+              {endpointStats.recentDiscoveries.length > 0 && (
+                <div style={{ borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden', marginBottom: 16 }}>
+                  <div style={{ padding: '10px 16px', background: 'var(--card)', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 600 }}>
+                    Recent Discovery Runs
+                  </div>
+                  {endpointStats.recentDiscoveries.map((d, i) => (
+                    <div key={d.id} style={{
+                      padding: '8px 16px', display: 'flex', justifyContent: 'space-between',
+                      borderBottom: i < endpointStats.recentDiscoveries.length - 1 ? '1px solid var(--border)' : 'none',
+                      background: i % 2 === 0 ? 'var(--background)' : 'var(--card)', fontSize: 13,
+                    }}>
+                      <span>Discovered: {d.discovered_count} | Verified: {d.verified_count} | Added: {d.added_count}</span>
+                      <span style={{ color: 'var(--muted-foreground)', fontSize: 12 }}>{new Date(d.created_at).toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Alert Messages */}
+          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, color: 'var(--foreground)' }}>
+            Alerts {unreadAlertCount > 0 && <span style={{ color: '#ef4444', fontSize: 13 }}>({unreadAlertCount} unread)</span>}
+          </h3>
+          <div style={{ borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden' }}>
+            {alerts.length === 0 ? (
+              <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted-foreground)' }}>
+                No alerts yet. Alerts appear when new endpoints are discovered or weekly digests are generated.
+              </div>
+            ) : (
+              alerts.map((alert, i) => (
+                <div
+                  key={alert.id}
+                  style={{
+                    padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12,
+                    borderBottom: i < alerts.length - 1 ? '1px solid var(--border)' : 'none',
+                    background: alert.read ? (i % 2 === 0 ? 'var(--card)' : 'var(--background)') : '#eff6ff',
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      {!alert.read && <span style={{
+                        width: 8, height: 8, borderRadius: '50%', background: '#3b82f6', display: 'inline-block',
+                      }} />}
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--foreground)' }}>{alert.title}</span>
+                      <span style={{
+                        fontSize: 10, padding: '2px 6px', borderRadius: 4,
+                        background: alert.type === 'new_endpoints' ? '#dbeafe' : alert.type === 'weekly_digest' ? '#fef3c7' : '#e0e7ff',
+                        color: alert.type === 'new_endpoints' ? '#1d4ed8' : alert.type === 'weekly_digest' ? '#92400e' : '#4338ca',
+                      }}>
+                        {alert.type.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 13, color: 'var(--muted-foreground)', lineHeight: 1.5 }}>{alert.message}</div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                    <span style={{ fontSize: 11, color: 'var(--muted-foreground)', whiteSpace: 'nowrap' }}>
+                      {new Date(alert.created_at).toLocaleString()}
+                    </span>
+                    {!alert.read && (
+                      <button onClick={() => handleMarkAlertRead(alert.id)} style={{
+                        padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)',
+                        background: 'var(--card)', fontSize: 11, cursor: 'pointer', color: 'var(--muted-foreground)',
+                      }}>
+                        Mark read
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       )}
 
