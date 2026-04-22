@@ -4,6 +4,7 @@ import { getSubmissionsByCompanyPaginated, getSubmissionStatusCounts, updateSubm
 import { generateManualKit } from '../services/manualKitGenerator';
 import { generateEmailKit } from '../services/emailKitGenerator';
 import { generatePayload } from '../services/payloadGenerator';
+import { env } from '../config/env';
 
 interface SubmissionRow {
   id: string;
@@ -196,5 +197,142 @@ export async function submissionRoutes(app: FastifyInstance): Promise<void> {
     );
 
     return reply.send({ kit });
+  });
+
+  app.post<{
+    Params: { id: string };
+    Body: { question: string; history?: Array<{ role: string; content: string }> };
+  }>('/api/submissions/:id/ai-assist', async (request, reply) => {
+    const userId = request.userId!;
+    const { id } = request.params;
+    const { question, history } = request.body;
+
+    if (!question || typeof question !== 'string' || question.trim().length === 0) {
+      return reply.status(400).send({ error: 'Question is required' });
+    }
+
+    if (!env.AI_API_KEY) {
+      return reply.status(500).send({ error: 'AI service is not configured' });
+    }
+
+    const isSuperAdmin = request.userRole === 'super_admin';
+    const submission = isSuperAdmin
+      ? await queryOne<SubmissionRow & { company_name: string; company_tagline: string; company_desc_short: string; company_desc_long: string; company_website: string; company_email: string; company_categories: string; company_social_links: string; company_pricing: string; company_logo_url: string; company_founded_year: number | null }>(
+          `SELECT s.*, d.name as directory_name, d.submit_url, d.submission_type,
+                  c.name as company_name, c.tagline as company_tagline,
+                  c.description_short as company_desc_short, c.description_long as company_desc_long,
+                  c.website as company_website, c.support_email as company_email,
+                  c.categories::text as company_categories, c.social_links::text as company_social_links,
+                  c.pricing_model as company_pricing, c.logo_url as company_logo_url,
+                  c.founded_year as company_founded_year
+           FROM submissions s
+           JOIN directories d ON s.directory_id = d.id
+           JOIN companies c ON s.company_id = c.id
+           WHERE s.id = $1`,
+          [id]
+        )
+      : await queryOne<SubmissionRow & { company_name: string; company_tagline: string; company_desc_short: string; company_desc_long: string; company_website: string; company_email: string; company_categories: string; company_social_links: string; company_pricing: string; company_logo_url: string; company_founded_year: number | null }>(
+          `SELECT s.*, d.name as directory_name, d.submit_url, d.submission_type,
+                  c.name as company_name, c.tagline as company_tagline,
+                  c.description_short as company_desc_short, c.description_long as company_desc_long,
+                  c.website as company_website, c.support_email as company_email,
+                  c.categories::text as company_categories, c.social_links::text as company_social_links,
+                  c.pricing_model as company_pricing, c.logo_url as company_logo_url,
+                  c.founded_year as company_founded_year
+           FROM submissions s
+           JOIN directories d ON s.directory_id = d.id
+           JOIN companies c ON s.company_id = c.id
+           WHERE s.id = $1 AND c.user_id = $2`,
+          [id, userId]
+        );
+
+    if (!submission) {
+      return reply.status(404).send({ error: 'Submission not found' });
+    }
+
+    let categories: string[] = [];
+    try { categories = JSON.parse(submission.company_categories || '[]'); } catch { /* ignore */ }
+    let socialLinks: Record<string, string> = {};
+    try { socialLinks = JSON.parse(submission.company_social_links || '{}'); } catch { /* ignore */ }
+
+    const companyContext = `
+COMPANY INFORMATION:
+- Name: ${submission.company_name}
+- Website: ${submission.company_website}
+- Contact Email: ${submission.company_email}
+- Tagline: ${submission.company_tagline}
+- Short Description: ${submission.company_desc_short}
+- Full Description: ${submission.company_desc_long}
+- Categories: ${categories.join(', ')}
+- Pricing Model: ${submission.company_pricing}
+- Founded Year: ${submission.company_founded_year || 'Not specified'}
+- Logo URL: ${submission.company_logo_url}
+- Social Links: ${Object.entries(socialLinks).map(([k, v]) => `${k}: ${v}`).join(', ') || 'None'}
+
+DIRECTORY BEING SUBMITTED TO:
+- Directory Name: ${submission.directory_name}
+- Submit URL: ${submission.submit_url}
+- Submission Type: ${submission.submission_type}
+`.trim();
+
+    const systemPrompt = `You are a helpful assistant for filling out directory submission forms. You have complete knowledge about the company being submitted and the directory it's being submitted to.
+
+${companyContext}
+
+Your job is to help the user fill out any form fields they encounter on the directory submission page. When asked about specific form fields:
+- Provide accurate, copy-ready answers based on the company data above
+- If a field asks for something not in the data (like phone number), honestly say the data doesn't include it and suggest what they could put
+- Keep answers concise and appropriate for form fields (not essay-length unless asked)
+- If asked to rewrite or adjust content, do so while keeping it accurate to the company
+- Format your response as plain text ready to copy-paste into a form field, unless the user asks for explanation`;
+
+    const messages: Array<{ role: string; content: string }> = [
+      { role: 'user', content: systemPrompt },
+      { role: 'assistant', content: 'Understood. I have full context about the company and directory. Ask me anything about the submission form fields and I\'ll provide copy-ready answers.' },
+    ];
+
+    if (history && Array.isArray(history)) {
+      for (const msg of history.slice(-10)) {
+        if (msg.role === 'user' || msg.role === 'assistant') {
+          messages.push({ role: msg.role, content: msg.content });
+        }
+      }
+    }
+
+    messages.push({ role: 'user', content: question });
+
+    try {
+      const response = await fetch(`${env.AI_API_BASE_URL}/v1/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.AI_API_KEY}`,
+          'anthropic-version': '2023-06-01',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: env.AI_MODEL,
+          max_tokens: 1500,
+          messages,
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.text();
+        return reply.status(500).send({ error: `AI service error: ${response.status}` });
+      }
+
+      const result = await response.json() as {
+        content: Array<{ type: string; text: string }>;
+      };
+
+      const textContent = result.content.find(c => c.type === 'text');
+      if (!textContent) {
+        return reply.status(500).send({ error: 'No response from AI' });
+      }
+
+      return reply.send({ answer: textContent.text });
+    } catch (err) {
+      return reply.status(500).send({ error: 'AI service unavailable' });
+    }
   });
 }

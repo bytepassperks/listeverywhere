@@ -37,8 +37,12 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
-  const [activeKit, setActiveKit] = useState<{ type: string; data: Record<string, unknown> } | null>(null);
+  const [activeKit, setActiveKit] = useState<{ type: string; data: Record<string, unknown>; submissionId?: string } | null>(null);
   const [resubmitting, setResubmitting] = useState(false);
+  const [aiChatOpen, setAiChatOpen] = useState(false);
+  const [aiMessages, setAiMessages] = useState<Array<{ role: string; content: string }>>([]);
+  const [aiInput, setAiInput] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -75,9 +79,29 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
   async function handleManualKit(submissionId: string) {
     try {
       const data = await api.getManualKit(submissionId);
-      setActiveKit({ type: 'manual', data: data.kit as unknown as Record<string, unknown> });
+      setActiveKit({ type: 'manual', data: data.kit as unknown as Record<string, unknown>, submissionId });
+      setAiMessages([]);
+      setAiChatOpen(false);
+      setAiInput('');
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to load kit');
+    }
+  }
+
+  async function handleAiSend() {
+    if (!aiInput.trim() || aiLoading || !activeKit?.submissionId) return;
+    const question = aiInput.trim();
+    setAiInput('');
+    const newMessages = [...aiMessages, { role: 'user', content: question }];
+    setAiMessages(newMessages);
+    setAiLoading(true);
+    try {
+      const { answer } = await api.aiAssist(activeKit.submissionId, question, aiMessages);
+      setAiMessages([...newMessages, { role: 'assistant', content: answer }]);
+    } catch (err) {
+      setAiMessages([...newMessages, { role: 'assistant', content: `Error: ${err instanceof Error ? err.message : 'Failed to get AI response'}` }]);
+    } finally {
+      setAiLoading(false);
     }
   }
 
@@ -477,6 +501,79 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
                   style={{ background: 'var(--primary)' }}>
                   Open Submission Page &rarr;
                 </a>
+
+                {/* AI Chat Assistant */}
+                <div className="mt-4 border rounded-xl overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+                  <button
+                    onClick={() => setAiChatOpen(!aiChatOpen)}
+                    className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold"
+                    style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white' }}
+                  >
+                    <span>🤖 AI Form Assistant — Ask anything about this submission</span>
+                    <span>{aiChatOpen ? '▲' : '▼'}</span>
+                  </button>
+
+                  {aiChatOpen && (
+                    <div style={{ background: 'var(--background)' }}>
+                      <div className="px-4 py-3 space-y-3 max-h-64 overflow-auto" id="ai-chat-messages">
+                        {aiMessages.length === 0 && (
+                          <div className="text-xs text-center py-4" style={{ color: 'var(--muted-foreground)' }}>
+                            Ask me anything! Examples:<br />
+                            &quot;What&apos;s the phone number?&quot; · &quot;Write a 50-word description&quot; · &quot;This form asks for founder name&quot;
+                          </div>
+                        )}
+                        {aiMessages.map((msg, i) => (
+                          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            <div
+                              className="rounded-xl px-3 py-2 text-sm max-w-[85%]"
+                              style={{
+                                background: msg.role === 'user' ? '#6366f1' : 'var(--secondary)',
+                                color: msg.role === 'user' ? 'white' : 'var(--foreground)',
+                              }}
+                            >
+                              <div className="whitespace-pre-wrap">{msg.content}</div>
+                              {msg.role === 'assistant' && (
+                                <button
+                                  onClick={() => copyToClipboard(msg.content)}
+                                  className="mt-1 text-xs opacity-60 hover:opacity-100"
+                                >
+                                  📋 Copy
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                        {aiLoading && (
+                          <div className="flex justify-start">
+                            <div className="rounded-xl px-3 py-2 text-sm" style={{ background: 'var(--secondary)', color: 'var(--muted-foreground)' }}>
+                              Thinking...
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="px-4 py-3 border-t flex gap-2" style={{ borderColor: 'var(--border)' }}>
+                        <input
+                          type="text"
+                          value={aiInput}
+                          onChange={(e) => setAiInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAiSend(); } }}
+                          placeholder="Ask about form fields, descriptions, phone numbers..."
+                          className="flex-1 px-3 py-2 rounded-lg border text-sm"
+                          style={{ borderColor: 'var(--border)', background: 'var(--card)', color: 'var(--foreground)' }}
+                          disabled={aiLoading}
+                        />
+                        <button
+                          onClick={handleAiSend}
+                          disabled={aiLoading || !aiInput.trim()}
+                          className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-40"
+                          style={{ background: '#6366f1' }}
+                        >
+                          Send
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
               );
             })()}

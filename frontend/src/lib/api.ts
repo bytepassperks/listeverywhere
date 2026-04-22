@@ -169,6 +169,13 @@ class ApiClient {
       body: JSON.stringify({}),
     });
   }
+
+  async aiAssist(submissionId: string, question: string, history?: Array<{ role: string; content: string }>) {
+    return this.request<{ answer: string }>(`/api/submissions/${submissionId}/ai-assist`, {
+      method: 'POST',
+      body: JSON.stringify({ question, history }),
+    });
+  }
 }
 
 export const api = new ApiClient();
