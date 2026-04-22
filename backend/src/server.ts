@@ -223,3 +223,4 @@ function startBackgroundWorkers() {
 start();
 
 export { buildApp };
+
