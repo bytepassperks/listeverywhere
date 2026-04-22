@@ -39,6 +39,7 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
   const [loading, setLoading] = useState(true);
   const [activeKit, setActiveKit] = useState<{ type: string; data: Record<string, unknown> } | null>(null);
   const [resubmitting, setResubmitting] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -98,6 +99,19 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
       alert(err instanceof Error ? err.message : 'Failed to resubmit');
     } finally {
       setResubmitting(false);
+    }
+  }
+
+  async function handleBackfill() {
+    setBackfilling(true);
+    try {
+      const result = await api.backfillSubmissions(id);
+      alert(result.message);
+      await load();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to backfill submissions');
+    } finally {
+      setBackfilling(false);
     }
   }
 
@@ -173,11 +187,18 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold" style={{ color: 'var(--foreground)' }}>Submission Progress</h2>
-          <button onClick={handleResubmit} disabled={resubmitting}
-            className="px-3 py-1 rounded-lg text-xs font-medium text-white disabled:opacity-50"
-            style={{ background: 'var(--primary)' }}>
-            {resubmitting ? 'Resubmitting...' : 'Retry Failed'}
-          </button>
+          <div className="flex gap-2">
+            <button onClick={handleBackfill} disabled={backfilling}
+              className="px-3 py-1 rounded-lg text-xs font-medium text-white disabled:opacity-50"
+              style={{ background: '#22c55e' }}>
+              {backfilling ? 'Backfilling...' : 'Backfill All Directories'}
+            </button>
+            <button onClick={handleResubmit} disabled={resubmitting}
+              className="px-3 py-1 rounded-lg text-xs font-medium text-white disabled:opacity-50"
+              style={{ background: 'var(--primary)' }}>
+              {resubmitting ? 'Resubmitting...' : 'Retry Failed'}
+            </button>
+          </div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
           {Object.entries(statusCounts).map(([status, count]) => (

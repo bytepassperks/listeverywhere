@@ -292,4 +292,52 @@ export async function companyRoutes(app: FastifyInstance): Promise<void> {
 
     return reply.send({ message: `${failedSubmissions.length} submissions re-queued` });
   });
+
+  app.post<{ Params: { id: string } }>('/api/companies/:id/backfill-submissions', async (request, reply) => {
+    const userId = request.userId!;
+    const company = await queryOne<CompanyRow>(
+      'SELECT id FROM companies WHERE id = $1 AND user_id = $2',
+      [request.params.id, userId]
+    );
+
+    if (!company) {
+      return reply.status(404).send({ error: 'Company not found' });
+    }
+
+    const directories = await query<DirectoryRow>(
+      `SELECT d.id, d.name, d.submission_type, d.api_endpoint, d.submit_url
+       FROM directories d
+       WHERE d.active = true
+         AND d.id NOT IN (SELECT directory_id FROM submissions WHERE company_id = $1)`,
+      [company.id]
+    );
+
+    if (directories.length === 0) {
+      return reply.send({ message: 'All directories already have submissions', created: 0 });
+    }
+
+    let created = 0;
+    for (const dir of directories) {
+      const submission = await queryOne<SubmissionRow>(
+        `INSERT INTO submissions (company_id, directory_id, status)
+         VALUES ($1, $2, 'queued')
+         ON CONFLICT (company_id, directory_id) DO NOTHING
+         RETURNING id`,
+        [company.id, dir.id]
+      );
+
+      if (submission) {
+        await enqueueSubmission(dir.submission_type, {
+          submissionId: submission.id,
+          companyId: company.id,
+          directoryId: dir.id,
+          apiEndpoint: dir.api_endpoint || undefined,
+          submitUrl: dir.submit_url,
+        });
+        created++;
+      }
+    }
+
+    return reply.send({ message: `${created} new submissions created and queued`, created });
+  });
 }

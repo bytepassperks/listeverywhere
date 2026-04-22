@@ -158,6 +158,12 @@ class ApiClient {
   async getJob(id: string) {
     return this.request<{ job: Job }>(`/api/jobs/${id}`);
   }
+
+  async backfillSubmissions(companyId: string) {
+    return this.request<{ message: string; created: number }>(`/api/companies/${companyId}/backfill-submissions`, {
+      method: 'POST',
+    });
+  }
 }
 
 export const api = new ApiClient();
