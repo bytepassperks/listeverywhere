@@ -62,7 +62,7 @@ class ApiClient {
   }
 
   async signup(email: string, password: string) {
-    const data = await this.request<{ token: string; user: { id: string; email: string; plan: string } }>(
+    const data = await this.request<{ token: string; user: { id: string; email: string; plan: string; role: string } }>(
       '/api/auth/signup',
       { method: 'POST', body: JSON.stringify({ email, password }) }
     );
@@ -71,7 +71,7 @@ class ApiClient {
   }
 
   async login(email: string, password: string) {
-    const data = await this.request<{ token: string; user: { id: string; email: string; plan: string } }>(
+    const data = await this.request<{ token: string; user: { id: string; email: string; plan: string; role: string } }>(
       '/api/auth/login',
       { method: 'POST', body: JSON.stringify({ email, password }) }
     );
@@ -85,7 +85,7 @@ class ApiClient {
   }
 
   async getMe() {
-    return this.request<{ user: { id: string; email: string; plan: string; created_at: string } }>('/api/auth/me');
+    return this.request<{ user: { id: string; email: string; plan: string; role: string; created_at: string } }>('/api/auth/me');
   }
 
   async createCompany(website: string, supportEmail: string) {

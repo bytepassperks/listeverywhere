@@ -1,6 +1,32 @@
 import fs from 'fs';
 import path from 'path';
+import bcrypt from 'bcryptjs';
 import { query, queryOne } from './pool';
+
+export async function seedSuperAdmin(): Promise<void> {
+  const email = 'harryroger798@gmail.com';
+  const existing = await queryOne<{ id: string }>('SELECT id FROM users WHERE email = $1', [email]);
+
+  if (existing) {
+    await query('UPDATE users SET role = $1 WHERE email = $2', ['super_admin', email]);
+    console.log(`Super admin already exists (${email}), ensured role is super_admin.`);
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash('007JamesBond@@', 12);
+  const user = await queryOne<{ id: string }>(
+    `INSERT INTO users (email, password_hash, plan, role) VALUES ($1, $2, 'pro', 'super_admin') RETURNING id`,
+    [email, passwordHash]
+  );
+
+  if (user) {
+    await query(
+      `INSERT INTO subscriptions (user_id, plan, credits) VALUES ($1, 'pro', 999999)`,
+      [user.id]
+    );
+    console.log(`Super admin created: ${email}`);
+  }
+}
 
 interface DirectorySeed {
   name: string;

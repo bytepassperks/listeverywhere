@@ -17,6 +17,7 @@ interface UserRow {
   email: string;
   password_hash: string;
   plan: string;
+  role: string;
   created_at: string;
 }
 
@@ -40,7 +41,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const passwordHash = await bcrypt.hash(password, 12);
 
     const user = await queryOne<UserRow>(
-      `INSERT INTO users (email, password_hash, plan) VALUES ($1, $2, 'free') RETURNING id, email, plan, created_at`,
+      `INSERT INTO users (email, password_hash, plan, role) VALUES ($1, $2, 'free', 'user') RETURNING id, email, plan, role, created_at`,
       [email, passwordHash]
     );
 
@@ -53,11 +54,11 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       [user.id]
     );
 
-    const token = app.jwt.sign({ id: user.id, email: user.email }, { expiresIn: '7d' });
+    const token = app.jwt.sign({ id: user.id, email: user.email, role: user.role }, { expiresIn: '7d' });
 
     return reply.status(201).send({
       token,
-      user: { id: user.id, email: user.email, plan: user.plan },
+      user: { id: user.id, email: user.email, plan: user.plan, role: user.role },
     });
   });
 
@@ -69,7 +70,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     }
 
     const user = await queryOne<UserRow>(
-      'SELECT id, email, password_hash, plan FROM users WHERE email = $1',
+      'SELECT id, email, password_hash, plan, role FROM users WHERE email = $1',
       [email]
     );
 
@@ -82,11 +83,11 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(401).send({ error: 'Invalid credentials' });
     }
 
-    const token = app.jwt.sign({ id: user.id, email: user.email }, { expiresIn: '7d' });
+    const token = app.jwt.sign({ id: user.id, email: user.email, role: user.role }, { expiresIn: '7d' });
 
     return reply.send({
       token,
-      user: { id: user.id, email: user.email, plan: user.plan },
+      user: { id: user.id, email: user.email, plan: user.plan, role: user.role },
     });
   });
 
@@ -98,7 +99,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     preValidation: [app.authenticate],
   }, async (request, reply) => {
     const user = await queryOne<UserRow>(
-      'SELECT id, email, plan, created_at FROM users WHERE id = $1',
+      'SELECT id, email, plan, role, created_at FROM users WHERE id = $1',
       [request.userId]
     );
 
@@ -106,6 +107,6 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(404).send({ error: 'User not found' });
     }
 
-    return reply.send({ user: { id: user.id, email: user.email, plan: user.plan, created_at: user.created_at } });
+    return reply.send({ user: { id: user.id, email: user.email, plan: user.plan, role: user.role, created_at: user.created_at } });
   });
 }

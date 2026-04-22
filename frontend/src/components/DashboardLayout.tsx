@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
@@ -15,11 +16,20 @@ const navItems = [
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [userInfo, setUserInfo] = useState<{ email: string; role: string } | null>(null);
+
+  useEffect(() => {
+    api.getMe().then(data => {
+      setUserInfo({ email: data.user.email, role: data.user.role });
+    }).catch(() => {});
+  }, []);
 
   async function handleLogout() {
     await api.logout();
     router.push('/login');
   }
+
+  const isSuperAdmin = userInfo?.role === 'super_admin';
 
   return (
     <div className="min-h-screen flex" style={{ background: 'var(--background)' }}>
@@ -49,6 +59,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
         </nav>
         <div className="p-4 border-t" style={{ borderColor: 'var(--border)' }}>
+          {userInfo && (
+            <div className="mb-3 px-3">
+              <div className="text-xs truncate" style={{ color: 'var(--muted-foreground)' }}>
+                {userInfo.email}
+              </div>
+              {isSuperAdmin && (
+                <span className="inline-block mt-1 px-2 py-0.5 rounded text-xs font-bold" style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}>
+                  Super Admin
+                </span>
+              )}
+              {!isSuperAdmin && userInfo.role !== 'user' && (
+                <span className="inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium" style={{ background: 'var(--secondary)', color: 'var(--foreground)' }}>
+                  {userInfo.role}
+                </span>
+              )}
+            </div>
+          )}
           <button
             onClick={handleLogout}
             className="w-full px-3 py-2 rounded-lg text-sm font-medium text-left"

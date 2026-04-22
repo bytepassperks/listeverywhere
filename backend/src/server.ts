@@ -13,7 +13,7 @@ import { demoVideoRoutes } from './routes/demoVideo';
 import path from 'path';
 import fs from 'fs';
 import { runMigrations } from './db/migrate';
-import { seedDirectories } from './db/seed';
+import { seedDirectories, seedSuperAdmin } from './db/seed';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -48,9 +48,10 @@ async function buildApp() {
     reply: import('fastify').FastifyReply
   ) {
     try {
-      const decoded = await request.jwtVerify<{ id: string; email: string }>();
+      const decoded = await request.jwtVerify<{ id: string; email: string; role?: string }>();
       request.userId = decoded.id;
       request.userEmail = decoded.email;
+      request.userRole = decoded.role || 'user';
     } catch {
       reply.status(401).send({ error: 'Unauthorized' });
     }
@@ -155,6 +156,13 @@ async function start() {
     console.log('Directory seed check completed');
   } catch (err) {
     console.error('Seed error (continuing anyway):', err);
+  }
+
+  try {
+    await seedSuperAdmin();
+    console.log('Super admin seed check completed');
+  } catch (err) {
+    console.error('Super admin seed error (continuing anyway):', err);
   }
 
   const app = await buildApp();

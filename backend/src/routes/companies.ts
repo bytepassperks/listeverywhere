@@ -183,19 +183,19 @@ export async function companyRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/api/companies', async (request, reply) => {
     const userId = request.userId!;
-    const companies = await query<CompanyRow>(
-      'SELECT * FROM companies WHERE user_id = $1 ORDER BY created_at DESC',
-      [userId]
-    );
+    const isSuperAdmin = request.userRole === 'super_admin';
+    const companies = isSuperAdmin
+      ? await query<CompanyRow>('SELECT * FROM companies ORDER BY created_at DESC')
+      : await query<CompanyRow>('SELECT * FROM companies WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
     return reply.send({ companies });
   });
 
   app.get<{ Params: { id: string } }>('/api/companies/:id', async (request, reply) => {
     const userId = request.userId!;
-    const company = await queryOne<CompanyRow>(
-      'SELECT * FROM companies WHERE id = $1 AND user_id = $2',
-      [request.params.id, userId]
-    );
+    const isSuperAdmin = request.userRole === 'super_admin';
+    const company = isSuperAdmin
+      ? await queryOne<CompanyRow>('SELECT * FROM companies WHERE id = $1', [request.params.id])
+      : await queryOne<CompanyRow>('SELECT * FROM companies WHERE id = $1 AND user_id = $2', [request.params.id, userId]);
 
     if (!company) {
       return reply.status(404).send({ error: 'Company not found' });

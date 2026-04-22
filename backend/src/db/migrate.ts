@@ -7,8 +7,15 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(255) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   plan VARCHAR(50) DEFAULT 'free',
+  role VARCHAR(50) DEFAULT 'user',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Add role column if it doesn't exist (for existing databases)
+DO $$ BEGIN
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'user';
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
 
 -- Companies
 CREATE TABLE IF NOT EXISTS companies (
