@@ -5,6 +5,8 @@ import { generateIndexNowKey, submitUrlsViaIndexNow } from '../services/indexNow
 import { pingSitemap, pingUrls, batchCheckIndexStatus } from '../services/pingService';
 import { buildBacklinks, getBacklinkStats, seedBacklinkEndpoints } from '../services/backlinkBuilder';
 import { analyzeMetaTags, checkGoogleIndex, analyzeRobotsTxt } from '../services/seoTools';
+import { createCampaign, processCampaignBatch, getCampaigns, pauseCampaign, resumeCampaign } from '../services/dripFeedService';
+import { submitToLLMEngines, checkLLMVisibility, getLLMEngineInfo } from '../services/llmIndexingService';
 
 export async function indexerRoutes(app: FastifyInstance) {
   // ==========================================
@@ -464,9 +466,8 @@ export async function indexerRoutes(app: FastifyInstance) {
     );
 
     const result = await pool.query(
-      `SELECT br.*, be.name as endpoint_name, be.category as endpoint_category
+      `SELECT br.*
        FROM backlink_results br
-       JOIN backlink_endpoints be ON br.endpoint_id = be.id
        ${whereClause}
        ORDER BY br.created_at DESC
        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
@@ -553,5 +554,93 @@ export async function indexerRoutes(app: FastifyInstance) {
       backlinkEndpoints: parseInt(endpointCount.rows[0].count),
       totalBacklinks: parseInt(backlinkCount.rows[0].count),
     };
+  });
+
+  // ==========================================
+  // DRIP-FEED CAMPAIGNS
+  // ==========================================
+
+  // Create a drip-feed campaign
+  app.post('/api/indexer/projects/:id/campaigns', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const { daily_limit, duration_days, categories, min_delay_ms, max_delay_ms } = request.body as {
+      daily_limit?: number; duration_days?: number; categories?: string[];
+      min_delay_ms?: number; max_delay_ms?: number;
+    };
+
+    const project = await pool.query('SELECT domain FROM indexer_projects WHERE id = $1', [id]);
+    if (project.rows.length === 0) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    const result = await createCampaign(id, request.userId!, {
+      projectId: id, dailyLimit: daily_limit, durationDays: duration_days,
+      categories: categories || [], minDelayMs: min_delay_ms, maxDelayMs: max_delay_ms,
+    });
+
+    return reply.status(201).send({
+      message: 'Campaign created',
+      ...result,
+    });
+  });
+
+  // Get campaigns for a project
+  app.get('/api/indexer/projects/:id/campaigns', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const campaigns = await getCampaigns(id);
+    return { campaigns };
+  });
+
+  // Process campaign batch (run next batch of submissions)
+  app.post('/api/indexer/campaigns/:campaignId/process', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { campaignId } = request.params as { campaignId: string };
+    const result = await processCampaignBatch(campaignId);
+    return { message: 'Batch processed', ...result };
+  });
+
+  // Pause campaign
+  app.post('/api/indexer/campaigns/:campaignId/pause', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { campaignId } = request.params as { campaignId: string };
+    await pauseCampaign(campaignId);
+    return { message: 'Campaign paused' };
+  });
+
+  // Resume campaign
+  app.post('/api/indexer/campaigns/:campaignId/resume', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { campaignId } = request.params as { campaignId: string };
+    await resumeCampaign(campaignId);
+    return { message: 'Campaign resumed' };
+  });
+
+  // ==========================================
+  // LLM INDEXING (Module 5)
+  // ==========================================
+
+  // Submit to LLM search engines
+  app.post('/api/indexer/projects/:id/llm-index', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+
+    const project = await pool.query('SELECT domain FROM indexer_projects WHERE id = $1', [id]);
+    if (project.rows.length === 0) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    const result = await submitToLLMEngines(id);
+    return { message: 'LLM indexing complete', ...result };
+  });
+
+  // Check LLM visibility
+  app.post('/api/indexer/tools/llm-visibility', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { domain } = request.body as { domain: string };
+    if (!domain) return reply.status(400).send({ error: 'Domain is required' });
+
+    const cleanDomain = domain.replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/.*$/, '');
+    const result = await checkLLMVisibility(cleanDomain);
+    return result;
+  });
+
+  // Get LLM engine info
+  app.get('/api/indexer/llm-engines', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    return { engines: getLLMEngineInfo() };
   });
 }

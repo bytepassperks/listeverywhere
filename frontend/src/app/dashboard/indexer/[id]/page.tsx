@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { api, IndexerProject, IndexerUrl, IndexerActivity, BacklinkResult } from '@/lib/api';
+import { api, IndexerProject, IndexerUrl, IndexerActivity, BacklinkResult, Campaign } from '@/lib/api';
 
-type Tab = 'urls' | 'backlinks' | 'activity';
+type Tab = 'urls' | 'backlinks' | 'campaigns' | 'llm' | 'activity';
 
 export default function IndexerProjectPage() {
   const params = useParams();
@@ -38,6 +38,15 @@ export default function IndexerProjectPage() {
   // Add URLs modal
   const [showAddUrls, setShowAddUrls] = useState(false);
   const [newUrlsText, setNewUrlsText] = useState('');
+
+  // Campaign state
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [creatingCampaign, setCreatingCampaign] = useState(false);
+  const [processingCampaign, setProcessingCampaign] = useState<string | null>(null);
+
+  // LLM indexing state
+  const [submittingLLM, setSubmittingLLM] = useState(false);
+  const [llmResults, setLlmResults] = useState<Array<{ engine: string; status: string; method: string }> | null>(null);
 
   const loadProject = useCallback(async () => {
     try {
@@ -91,6 +100,19 @@ export default function IndexerProjectPage() {
   useEffect(() => {
     if (!loading && activeTab === 'backlinks') loadBacklinks();
   }, [loading, activeTab, loadBacklinks]);
+
+  const loadCampaigns = useCallback(async () => {
+    try {
+      const data = await api.getCampaigns(projectId);
+      setCampaigns(data.campaigns);
+    } catch (err) {
+      console.error('Failed to load campaigns:', err);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!loading && activeTab === 'campaigns') loadCampaigns();
+  }, [loading, activeTab, loadCampaigns]);
 
   function showResult(msg: string) {
     setActionResult(msg);
@@ -173,6 +195,66 @@ export default function IndexerProjectPage() {
       await Promise.all([loadProject(), loadUrls()]);
     } catch (err) {
       showResult(`Error: ${err instanceof Error ? err.message : 'Add failed'}`);
+    }
+  }
+
+  async function handleCreateCampaign() {
+    setCreatingCampaign(true);
+    try {
+      const result = await api.createCampaign(projectId, { daily_limit: 200, duration_days: 30 });
+      showResult(`Campaign created: ${result.totalEndpoints} endpoints queued, ~${result.estimatedDays} days to complete`);
+      await loadCampaigns();
+    } catch (err) {
+      showResult(`Error: ${err instanceof Error ? err.message : 'Failed to create campaign'}`);
+    } finally {
+      setCreatingCampaign(false);
+    }
+  }
+
+  async function handleProcessBatch(campaignId: string) {
+    setProcessingCampaign(campaignId);
+    try {
+      const result = await api.processCampaignBatch(campaignId);
+      showResult(`Batch: ${result.succeeded} submitted, ${result.failed} failed, ${result.remaining} remaining${result.paused ? ' — PAUSED (error rate too high)' : ''}`);
+      await loadCampaigns();
+    } catch (err) {
+      showResult(`Error: ${err instanceof Error ? err.message : 'Processing failed'}`);
+    } finally {
+      setProcessingCampaign(null);
+    }
+  }
+
+  async function handlePauseCampaign(campaignId: string) {
+    try {
+      await api.pauseCampaign(campaignId);
+      showResult('Campaign paused');
+      await loadCampaigns();
+    } catch (err) {
+      showResult(`Error: ${err instanceof Error ? err.message : 'Pause failed'}`);
+    }
+  }
+
+  async function handleResumeCampaign(campaignId: string) {
+    try {
+      await api.resumeCampaign(campaignId);
+      showResult('Campaign resumed');
+      await loadCampaigns();
+    } catch (err) {
+      showResult(`Error: ${err instanceof Error ? err.message : 'Resume failed'}`);
+    }
+  }
+
+  async function handleLLMIndex() {
+    setSubmittingLLM(true);
+    try {
+      const result = await api.submitLLMIndex(projectId);
+      setLlmResults(result.results);
+      const succeeded = result.results.filter(r => r.status === 'submitted').length;
+      showResult(`LLM Indexing: ${succeeded}/${result.results.length} endpoints submitted`);
+    } catch (err) {
+      showResult(`Error: ${err instanceof Error ? err.message : 'LLM indexing failed'}`);
+    } finally {
+      setSubmittingLLM(false);
     }
   }
 
@@ -318,10 +400,12 @@ export default function IndexerProjectPage() {
       )}
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
         {([
           { id: 'urls' as Tab, label: `URLs (${project.total_urls})` },
           { id: 'backlinks' as Tab, label: `Backlinks (${backlinkStats?.total || 0})` },
+          { id: 'campaigns' as Tab, label: 'Drip-Feed Campaigns' },
+          { id: 'llm' as Tab, label: 'LLM Indexing' },
           { id: 'activity' as Tab, label: 'Activity Log' },
         ]).map((tab) => (
           <button
@@ -553,6 +637,190 @@ export default function IndexerProjectPage() {
                 disabled={backlinkPagination.page >= backlinkPagination.totalPages}
                 style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--foreground)', cursor: 'pointer', opacity: backlinkPagination.page >= backlinkPagination.totalPages ? 0.5 : 1 }}
               >Next</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Campaigns Tab */}
+      {activeTab === 'campaigns' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <div>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>Drip-Feed Campaigns</h3>
+              <p style={{ fontSize: 13, color: 'var(--muted-foreground)', marginTop: 4 }}>
+                Spread backlink submissions over time to avoid detection. Each campaign processes a set number of endpoints per day with randomized delays.
+              </p>
+            </div>
+            <button
+              onClick={handleCreateCampaign}
+              disabled={creatingCampaign}
+              style={{
+                padding: '10px 20px', borderRadius: 8, border: 'none',
+                background: creatingCampaign ? 'var(--border)' : '#6366f1',
+                color: '#fff', fontWeight: 600, cursor: creatingCampaign ? 'default' : 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {creatingCampaign ? 'Creating...' : '+ New Campaign'}
+            </button>
+          </div>
+
+          {campaigns.length === 0 ? (
+            <div style={{
+              padding: 40, textAlign: 'center', color: 'var(--muted-foreground)',
+              borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)',
+            }}>
+              No campaigns yet. Create one to start drip-feeding backlink submissions.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {campaigns.map((c) => {
+                const total = c.total_endpoints;
+                const processed = parseInt(c.submitted_count) + parseInt(c.failed_count);
+                const progress = total > 0 ? Math.round((processed / total) * 100) : 0;
+                return (
+                  <div key={c.id} style={{
+                    padding: 20, borderRadius: 12, background: 'var(--card)',
+                    border: '1px solid var(--border)',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <div>
+                        <span style={{
+                          padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600,
+                          background: c.status === 'active' ? '#dcfce7' : c.status === 'paused' ? '#fef9c3' : c.status === 'completed' ? '#e0e7ff' : '#fef2f2',
+                          color: c.status === 'active' ? '#16a34a' : c.status === 'paused' ? '#ca8a04' : c.status === 'completed' ? '#4f46e5' : '#dc2626',
+                        }}>
+                          {c.status.toUpperCase()}
+                        </span>
+                        <span style={{ fontSize: 12, color: 'var(--muted-foreground)', marginLeft: 8 }}>
+                          {c.daily_limit}/day &middot; {c.duration_days} days &middot; Created {new Date(c.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {c.status === 'active' && (
+                          <>
+                            <button
+                              onClick={() => handleProcessBatch(c.id)}
+                              disabled={processingCampaign === c.id}
+                              style={{
+                                padding: '6px 14px', borderRadius: 6, border: 'none',
+                                background: processingCampaign === c.id ? 'var(--border)' : '#6366f1',
+                                color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                              }}
+                            >
+                              {processingCampaign === c.id ? 'Processing...' : 'Run Batch'}
+                            </button>
+                            <button onClick={() => handlePauseCampaign(c.id)} style={{
+                              padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)',
+                              background: 'var(--card)', color: 'var(--foreground)', fontSize: 12, cursor: 'pointer',
+                            }}>Pause</button>
+                          </>
+                        )}
+                        {c.status === 'paused' && (
+                          <button onClick={() => handleResumeCampaign(c.id)} style={{
+                            padding: '6px 14px', borderRadius: 6, border: 'none',
+                            background: '#22c55e', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                          }}>Resume</button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Progress bar */}
+                    <div style={{ background: 'var(--border)', borderRadius: 6, height: 8, marginBottom: 8 }}>
+                      <div style={{
+                        background: '#6366f1', borderRadius: 6, height: '100%',
+                        width: `${progress}%`, transition: 'width 0.3s',
+                      }} />
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--muted-foreground)' }}>
+                      <span>Total: <strong style={{ color: 'var(--foreground)' }}>{total.toLocaleString()}</strong></span>
+                      <span>Submitted: <strong style={{ color: '#22c55e' }}>{parseInt(c.submitted_count).toLocaleString()}</strong></span>
+                      <span>Failed: <strong style={{ color: '#ef4444' }}>{parseInt(c.failed_count).toLocaleString()}</strong></span>
+                      <span>Pending: <strong style={{ color: '#f59e0b' }}>{parseInt(c.pending_count).toLocaleString()}</strong></span>
+                      <span>Progress: <strong style={{ color: '#6366f1' }}>{progress}%</strong></span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* LLM Indexing Tab */}
+      {activeTab === 'llm' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <div>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>LLM Search Engine Indexing</h3>
+              <p style={{ fontSize: 13, color: 'var(--muted-foreground)', marginTop: 4 }}>
+                Submit your domain to platforms that AI search engines (ChatGPT, Perplexity, Gemini, Claude) crawl and reference.
+              </p>
+            </div>
+            <button
+              onClick={handleLLMIndex}
+              disabled={submittingLLM}
+              style={{
+                padding: '10px 20px', borderRadius: 8, border: 'none',
+                background: submittingLLM ? 'var(--border)' : '#8b5cf6',
+                color: '#fff', fontWeight: 600, cursor: submittingLLM ? 'default' : 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {submittingLLM ? 'Submitting...' : 'Submit to AI Engines'}
+            </button>
+          </div>
+
+          {/* How it works */}
+          <div style={{
+            padding: 16, borderRadius: 12, background: 'var(--card)',
+            border: '1px solid var(--border)', marginBottom: 20,
+          }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)', marginBottom: 8 }}>How LLM Indexing Works</div>
+            <div style={{ fontSize: 13, color: 'var(--muted-foreground)', lineHeight: 1.6 }}>
+              AI search engines like ChatGPT, Perplexity, and Gemini discover content through web crawling, trusted knowledge bases, and structured data.
+              We submit your domain to 25+ platforms these AI engines rely on — including Schema.org validators, knowledge bases (Wikipedia, Wikidata),
+              developer platforms (GitHub, StackOverflow), review sites (G2, Capterra, TrustPilot), and AI tool directories.
+              This increases the likelihood that AI assistants will reference and recommend your product.
+            </div>
+          </div>
+
+          {/* Results */}
+          {llmResults && (
+            <div style={{ borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden' }}>
+              <div style={{ padding: '12px 16px', background: 'var(--card)', borderBottom: '1px solid var(--border)', fontWeight: 600, fontSize: 14 }}>
+                Results: {llmResults.filter(r => r.status === 'submitted').length}/{llmResults.length} successful
+              </div>
+              {llmResults.map((r, i) => (
+                <div
+                  key={i}
+                  style={{
+                    padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    borderBottom: i < llmResults.length - 1 ? '1px solid var(--border)' : 'none',
+                    background: i % 2 === 0 ? 'var(--card)' : 'var(--background)',
+                  }}
+                >
+                  <span style={{ fontSize: 13, color: 'var(--foreground)' }}>{r.engine}</span>
+                  <span style={{
+                    padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600,
+                    background: r.status === 'submitted' ? '#dcfce7' : '#fef2f2',
+                    color: r.status === 'submitted' ? '#16a34a' : '#dc2626',
+                  }}>
+                    {r.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!llmResults && (
+            <div style={{
+              padding: 40, textAlign: 'center', color: 'var(--muted-foreground)',
+              borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)',
+            }}>
+              Click &quot;Submit to AI Engines&quot; to submit {project.domain} to 25+ LLM-relevant platforms.
             </div>
           )}
         </div>

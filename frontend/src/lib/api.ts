@@ -302,6 +302,58 @@ class ApiClient {
       body: JSON.stringify({ domain }),
     });
   }
+
+  // Drip-feed campaigns
+  async createCampaign(projectId: string, config: { daily_limit?: number; duration_days?: number; categories?: string[] } = {}) {
+    return this.request<{ campaignId: string; totalEndpoints: number; estimatedDays: number }>(`/api/indexer/projects/${projectId}/campaigns`, {
+      method: 'POST',
+      body: JSON.stringify(config),
+    });
+  }
+
+  async getCampaigns(projectId: string) {
+    return this.request<{ campaigns: Campaign[] }>(`/api/indexer/projects/${projectId}/campaigns`);
+  }
+
+  async processCampaignBatch(campaignId: string) {
+    return this.request<{ processed: number; succeeded: number; failed: number; remaining: number; paused: boolean }>(`/api/indexer/campaigns/${campaignId}/process`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async pauseCampaign(campaignId: string) {
+    return this.request<{ message: string }>(`/api/indexer/campaigns/${campaignId}/pause`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async resumeCampaign(campaignId: string) {
+    return this.request<{ message: string }>(`/api/indexer/campaigns/${campaignId}/resume`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  // LLM Indexing
+  async submitLLMIndex(projectId: string) {
+    return this.request<{ results: Array<{ engine: string; status: string; method: string }> }>(`/api/indexer/projects/${projectId}/llm-index`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async checkLLMVisibility(domain: string) {
+    return this.request<{ checks: LLMVisibilityCheck[] }>('/api/indexer/tools/llm-visibility', {
+      method: 'POST',
+      body: JSON.stringify({ domain }),
+    });
+  }
+
+  async getLLMEngines() {
+    return this.request<{ engines: LLMEngine[] }>('/api/indexer/llm-engines');
+  }
 }
 
 export const api = new ApiClient();
@@ -555,4 +607,32 @@ export interface RobotsTxtAnalysis {
   disallowedPaths: string[];
   allowedPaths: string[];
   crawlDelay: number | null;
+}
+
+export interface Campaign {
+  id: string;
+  project_id: string;
+  daily_limit: number;
+  duration_days: number;
+  categories: string[];
+  total_endpoints: number;
+  processed_count: number;
+  status: string;
+  pending_count: string;
+  submitted_count: string;
+  failed_count: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LLMVisibilityCheck {
+  platform: string;
+  found: boolean;
+  url: string;
+}
+
+export interface LLMEngine {
+  name: string;
+  type: string;
+  description: string;
 }

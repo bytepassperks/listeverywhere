@@ -186,7 +186,7 @@ CREATE TABLE IF NOT EXISTS backlink_endpoints (
   category VARCHAR(100) DEFAULT 'general' CHECK (category IN (
     'whois', 'seo_analyzer', 'speed_test', 'security_scan',
     'web_archive', 'ping_service', 'directory', 'social_bookmark',
-    'website_info', 'dns_lookup', 'general'
+    'website_info', 'dns_lookup', 'general', 'llm_indexing'
   )),
   domain_authority INTEGER,
   is_dofollow BOOLEAN DEFAULT false,
@@ -201,7 +201,9 @@ CREATE TABLE IF NOT EXISTS backlink_endpoints (
 CREATE TABLE IF NOT EXISTS backlink_results (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID NOT NULL REFERENCES indexer_projects(id) ON DELETE CASCADE,
-  endpoint_id UUID NOT NULL REFERENCES backlink_endpoints(id) ON DELETE CASCADE,
+  endpoint_id UUID REFERENCES backlink_endpoints(id) ON DELETE SET NULL,
+  endpoint_name VARCHAR(500),
+  endpoint_category VARCHAR(100),
   target_url TEXT NOT NULL,
   backlink_url TEXT,
   status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'submitted', 'verified', 'dead', 'error')),
@@ -220,7 +222,41 @@ CREATE TABLE IF NOT EXISTS indexer_activity_log (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Drip-feed Campaigns
+CREATE TABLE IF NOT EXISTS indexer_campaigns (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES indexer_projects(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  daily_limit INTEGER DEFAULT 200,
+  duration_days INTEGER DEFAULT 30,
+  categories JSONB DEFAULT '[]'::jsonb,
+  min_delay_ms INTEGER DEFAULT 30000,
+  max_delay_ms INTEGER DEFAULT 300000,
+  pause_on_error_rate REAL DEFAULT 0.3,
+  total_endpoints INTEGER DEFAULT 0,
+  processed_count INTEGER DEFAULT 0,
+  status VARCHAR(50) DEFAULT 'active' CHECK (status IN ('active', 'paused', 'completed', 'cancelled')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Campaign Queue (individual endpoint submissions in a drip-feed campaign)
+CREATE TABLE IF NOT EXISTS indexer_campaign_queue (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  campaign_id UUID NOT NULL REFERENCES indexer_campaigns(id) ON DELETE CASCADE,
+  endpoint_id UUID NOT NULL REFERENCES backlink_endpoints(id) ON DELETE CASCADE,
+  status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'submitted', 'failed')),
+  http_status INTEGER,
+  error TEXT,
+  processed_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Indexes
+CREATE INDEX IF NOT EXISTS idx_indexer_campaigns_project_id ON indexer_campaigns(project_id);
+CREATE INDEX IF NOT EXISTS idx_indexer_campaigns_status ON indexer_campaigns(status);
+CREATE INDEX IF NOT EXISTS idx_campaign_queue_campaign_id ON indexer_campaign_queue(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_queue_status ON indexer_campaign_queue(status);
 CREATE INDEX IF NOT EXISTS idx_companies_user_id ON companies(user_id);
 CREATE INDEX IF NOT EXISTS idx_submissions_company_id ON submissions(company_id);
 CREATE INDEX IF NOT EXISTS idx_submissions_directory_id ON submissions(directory_id);
