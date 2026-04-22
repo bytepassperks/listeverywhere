@@ -208,10 +208,10 @@ export async function companyRoutes(app: FastifyInstance): Promise<void> {
 
   app.get<{ Params: { id: string } }>('/api/companies/:id/payloads', async (request, reply) => {
     const userId = request.userId!;
-    const company = await queryOne<CompanyRow>(
-      'SELECT id FROM companies WHERE id = $1 AND user_id = $2',
-      [request.params.id, userId]
-    );
+    const isSuperAdmin = request.userRole === 'super_admin';
+    const company = isSuperAdmin
+      ? await queryOne<CompanyRow>('SELECT id FROM companies WHERE id = $1', [request.params.id])
+      : await queryOne<CompanyRow>('SELECT id FROM companies WHERE id = $1 AND user_id = $2', [request.params.id, userId]);
 
     if (!company) {
       return reply.status(404).send({ error: 'Company not found' });
@@ -225,10 +225,10 @@ export async function companyRoutes(app: FastifyInstance): Promise<void> {
     '/api/companies/:id/screenshots',
     async (request, reply) => {
       const userId = request.userId!;
-      const company = await queryOne<CompanyRow>(
-        'SELECT id FROM companies WHERE id = $1 AND user_id = $2',
-        [request.params.id, userId]
-      );
+      const isSuperAdmin = request.userRole === 'super_admin';
+      const company = isSuperAdmin
+        ? await queryOne<CompanyRow>('SELECT id FROM companies WHERE id = $1', [request.params.id])
+        : await queryOne<CompanyRow>('SELECT id FROM companies WHERE id = $1 AND user_id = $2', [request.params.id, userId]);
 
       if (!company) {
         return reply.status(404).send({ error: 'Company not found' });
@@ -258,10 +258,10 @@ export async function companyRoutes(app: FastifyInstance): Promise<void> {
 
   app.post<{ Params: { id: string } }>('/api/companies/:id/resubmit', async (request, reply) => {
     const userId = request.userId!;
-    const company = await queryOne<CompanyRow>(
-      'SELECT id FROM companies WHERE id = $1 AND user_id = $2',
-      [request.params.id, userId]
-    );
+    const isSuperAdmin = request.userRole === 'super_admin';
+    const company = isSuperAdmin
+      ? await queryOne<CompanyRow>('SELECT id FROM companies WHERE id = $1', [request.params.id])
+      : await queryOne<CompanyRow>('SELECT id FROM companies WHERE id = $1 AND user_id = $2', [request.params.id, userId]);
 
     if (!company) {
       return reply.status(404).send({ error: 'Company not found' });
@@ -295,10 +295,10 @@ export async function companyRoutes(app: FastifyInstance): Promise<void> {
 
   app.post<{ Params: { id: string } }>('/api/companies/:id/backfill-submissions', async (request, reply) => {
     const userId = request.userId!;
-    const company = await queryOne<CompanyRow>(
-      'SELECT id FROM companies WHERE id = $1 AND user_id = $2',
-      [request.params.id, userId]
-    );
+    const isSuperAdmin = request.userRole === 'super_admin';
+    const company = isSuperAdmin
+      ? await queryOne<CompanyRow>('SELECT id FROM companies WHERE id = $1', [request.params.id])
+      : await queryOne<CompanyRow>('SELECT id FROM companies WHERE id = $1 AND user_id = $2', [request.params.id, userId]);
 
     if (!company) {
       return reply.status(404).send({ error: 'Company not found' });

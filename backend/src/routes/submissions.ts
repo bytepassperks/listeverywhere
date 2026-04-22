@@ -33,10 +33,10 @@ export async function submissionRoutes(app: FastifyInstance): Promise<void> {
       const limit = Math.min(parseInt(request.query.limit || '50', 10), 200);
       const statusFilter = request.query.status;
 
-      const company = await queryOne<{ id: string }>(
-        'SELECT id FROM companies WHERE id = $1 AND user_id = $2',
-        [companyId, userId]
-      );
+      const isSuperAdmin = request.userRole === 'super_admin';
+      const company = isSuperAdmin
+        ? await queryOne<{ id: string }>('SELECT id FROM companies WHERE id = $1', [companyId])
+        : await queryOne<{ id: string }>('SELECT id FROM companies WHERE id = $1 AND user_id = $2', [companyId, userId]);
 
       if (!company) {
         return reply.status(404).send({ error: 'Company not found' });
@@ -66,12 +66,15 @@ export async function submissionRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(400).send({ error: `Status must be one of: ${validStatuses.join(', ')}` });
     }
 
-    const submission = await queryOne<SubmissionRow>(
-      `SELECT s.* FROM submissions s
-       JOIN companies c ON s.company_id = c.id
-       WHERE s.id = $1 AND c.user_id = $2`,
-      [id, userId]
-    );
+    const isSuperAdmin = request.userRole === 'super_admin';
+    const submission = isSuperAdmin
+      ? await queryOne<SubmissionRow>('SELECT s.* FROM submissions s WHERE s.id = $1', [id])
+      : await queryOne<SubmissionRow>(
+          `SELECT s.* FROM submissions s
+           JOIN companies c ON s.company_id = c.id
+           WHERE s.id = $1 AND c.user_id = $2`,
+          [id, userId]
+        );
 
     if (!submission) {
       return reply.status(404).send({ error: 'Submission not found' });
@@ -86,21 +89,37 @@ export async function submissionRoutes(app: FastifyInstance): Promise<void> {
     const userId = request.userId!;
     const { id } = request.params;
 
-    const submission = await queryOne<SubmissionRow & {
-      title_limit: number | null;
-      desc_limit: number | null;
-      requires_logo: boolean;
-      requires_screenshot: boolean;
-      requires_category: boolean;
-    }>(
-      `SELECT s.*, d.name as directory_name, d.submit_url, d.submission_type,
-              d.title_limit, d.desc_limit, d.requires_logo, d.requires_screenshot, d.requires_category
-       FROM submissions s
-       JOIN directories d ON s.directory_id = d.id
-       JOIN companies c ON s.company_id = c.id
-       WHERE s.id = $1 AND c.user_id = $2`,
-      [id, userId]
-    );
+    const isSuperAdmin = request.userRole === 'super_admin';
+    const submission = isSuperAdmin
+      ? await queryOne<SubmissionRow & {
+          title_limit: number | null;
+          desc_limit: number | null;
+          requires_logo: boolean;
+          requires_screenshot: boolean;
+          requires_category: boolean;
+        }>(
+          `SELECT s.*, d.name as directory_name, d.submit_url, d.submission_type,
+                  d.title_limit, d.desc_limit, d.requires_logo, d.requires_screenshot, d.requires_category
+           FROM submissions s
+           JOIN directories d ON s.directory_id = d.id
+           WHERE s.id = $1`,
+          [id]
+        )
+      : await queryOne<SubmissionRow & {
+          title_limit: number | null;
+          desc_limit: number | null;
+          requires_logo: boolean;
+          requires_screenshot: boolean;
+          requires_category: boolean;
+        }>(
+          `SELECT s.*, d.name as directory_name, d.submit_url, d.submission_type,
+                  d.title_limit, d.desc_limit, d.requires_logo, d.requires_screenshot, d.requires_category
+           FROM submissions s
+           JOIN directories d ON s.directory_id = d.id
+           JOIN companies c ON s.company_id = c.id
+           WHERE s.id = $1 AND c.user_id = $2`,
+          [id, userId]
+        );
 
     if (!submission) {
       return reply.status(404).send({ error: 'Submission not found' });
@@ -134,14 +153,23 @@ export async function submissionRoutes(app: FastifyInstance): Promise<void> {
     const userId = request.userId!;
     const { id } = request.params;
 
-    const submission = await queryOne<SubmissionRow>(
-      `SELECT s.*, d.name as directory_name, d.submit_url, d.submission_type, d.notes as directory_notes
-       FROM submissions s
-       JOIN directories d ON s.directory_id = d.id
-       JOIN companies c ON s.company_id = c.id
-       WHERE s.id = $1 AND c.user_id = $2`,
-      [id, userId]
-    );
+    const isSuperAdmin = request.userRole === 'super_admin';
+    const submission = isSuperAdmin
+      ? await queryOne<SubmissionRow>(
+          `SELECT s.*, d.name as directory_name, d.submit_url, d.submission_type, d.notes as directory_notes
+           FROM submissions s
+           JOIN directories d ON s.directory_id = d.id
+           WHERE s.id = $1`,
+          [id]
+        )
+      : await queryOne<SubmissionRow>(
+          `SELECT s.*, d.name as directory_name, d.submit_url, d.submission_type, d.notes as directory_notes
+           FROM submissions s
+           JOIN directories d ON s.directory_id = d.id
+           JOIN companies c ON s.company_id = c.id
+           WHERE s.id = $1 AND c.user_id = $2`,
+          [id, userId]
+        );
 
     if (!submission) {
       return reply.status(404).send({ error: 'Submission not found' });
