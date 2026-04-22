@@ -111,10 +111,14 @@ class ApiClient {
     return this.request<{ message: string }>(`/api/companies/${companyId}/resubmit`, { method: 'POST' });
   }
 
-  async getSubmissions(companyId: string) {
-    return this.request<{ submissions: Submission[]; statusCounts: Record<string, number> }>(
-      `/api/submissions/${companyId}`
-    );
+  async getSubmissions(companyId: string, page: number = 1, limit: number = 50, status?: string) {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (status && status !== 'all') params.set('status', status);
+    return this.request<{
+      submissions: Submission[];
+      statusCounts: Record<string, number>;
+      pagination: { page: number; limit: number; total: number; totalPages: number };
+    }>(`/api/submissions/${companyId}?${params.toString()}`);
   }
 
   async updateSubmissionStatus(submissionId: string, status: string) {

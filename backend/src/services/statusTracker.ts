@@ -67,6 +67,41 @@ export async function getSubmissionsByCompany(companyId: string): Promise<Submis
   );
 }
 
+export async function getSubmissionsByCompanyPaginated(
+  companyId: string,
+  page: number = 1,
+  limit: number = 50,
+  statusFilter?: string
+): Promise<{ submissions: SubmissionRecord[]; total: number }> {
+  const offset = (page - 1) * limit;
+  const params: (string | number)[] = [companyId];
+  let whereClause = 's.company_id = $1';
+
+  if (statusFilter && statusFilter !== 'all') {
+    params.push(statusFilter);
+    whereClause += ` AND s.status = $${params.length}`;
+  }
+
+  const countResult = await queryOne<{ count: string }>(
+    `SELECT COUNT(*)::text as count FROM submissions s WHERE ${whereClause}`,
+    params
+  );
+  const total = parseInt(countResult?.count || '0', 10);
+
+  params.push(limit, offset);
+  const submissions = await query<SubmissionRecord>(
+    `SELECT s.*, d.name as directory_name, d.submit_url, d.submission_type
+     FROM submissions s
+     JOIN directories d ON s.directory_id = d.id
+     WHERE ${whereClause}
+     ORDER BY s.created_at DESC
+     LIMIT $${params.length - 1} OFFSET $${params.length}`,
+    params
+  );
+
+  return { submissions, total };
+}
+
 export async function getSubmissionStatusCounts(companyId: string): Promise<Record<string, number>> {
   const rows = await query<StatusCount>(
     `SELECT status, COUNT(*)::text as count

@@ -40,23 +40,33 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
   const [activeKit, setActiveKit] = useState<{ type: string; data: Record<string, unknown> } | null>(null);
   const [resubmitting, setResubmitting] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalSubmissions, setTotalSubmissions] = useState(0);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const PAGE_SIZE = 50;
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (page = currentPage, status = statusFilter) => {
     try {
       const [companyData, submissionData] = await Promise.all([
         api.getCompany(id),
-        api.getSubmissions(id),
+        api.getSubmissions(id, page, PAGE_SIZE, status !== 'all' ? status : undefined),
       ]);
       setCompany(companyData.company);
       setScreenshots(companyData.screenshots);
       setSubmissions(submissionData.submissions);
       setStatusCounts(submissionData.statusCounts);
+      if (submissionData.pagination) {
+        setTotalPages(submissionData.pagination.totalPages);
+        setTotalSubmissions(submissionData.pagination.total);
+        setCurrentPage(submissionData.pagination.page);
+      }
     } catch {
       router.push('/dashboard');
     } finally {
       setLoading(false);
     }
-  }, [id, router]);
+  }, [id, router, currentPage, statusFilter]);
 
   useEffect(() => {
     load();
@@ -201,12 +211,23 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <button onClick={() => { setStatusFilter('all'); setCurrentPage(1); load(1, 'all'); }}
+            className="p-3 rounded-lg border text-center cursor-pointer transition-all"
+            style={{ borderColor: statusFilter === 'all' ? 'var(--primary)' : 'var(--border)', background: 'var(--card)', outline: statusFilter === 'all' ? '2px solid var(--primary)' : 'none' }}>
+            <div className="text-2xl font-bold" style={{ color: 'var(--primary)' }}>{Object.values(statusCounts).reduce((a, b) => a + b, 0)}</div>
+            <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>All</div>
+          </button>
           {Object.entries(statusCounts).map(([status, count]) => (
-            <div key={status} className="p-3 rounded-lg border text-center" style={{ borderColor: 'var(--border)', background: 'var(--card)' }}>
+            <button key={status} onClick={() => { setStatusFilter(status); setCurrentPage(1); load(1, status); }}
+              className="p-3 rounded-lg border text-center cursor-pointer transition-all"
+              style={{ borderColor: statusFilter === status ? STATUS_COLORS[status] || 'var(--primary)' : 'var(--border)', background: 'var(--card)', outline: statusFilter === status ? `2px solid ${STATUS_COLORS[status] || 'var(--primary)'}` : 'none' }}>
               <div className="text-2xl font-bold" style={{ color: STATUS_COLORS[status] || 'var(--foreground)' }}>{count}</div>
               <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{STATUS_LABELS[status] || status}</div>
-            </div>
+            </button>
           ))}
+        </div>
+        <div className="text-xs mb-2" style={{ color: 'var(--muted-foreground)' }}>
+          Showing {submissions.length} of {totalSubmissions} submissions (page {currentPage} of {totalPages})
         </div>
       </div>
 
@@ -268,6 +289,53 @@ export default function CompanyDetailPage({ params }: { params: Promise<{ id: st
           </div>
         ))}
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 mt-4 mb-6">
+          <button
+            onClick={() => { const p = Math.max(1, currentPage - 1); setCurrentPage(p); load(p, statusFilter); }}
+            disabled={currentPage <= 1}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-30"
+            style={{ background: 'var(--secondary)', color: 'var(--secondary-foreground)' }}>
+            &larr; Previous
+          </button>
+          <div className="flex gap-1">
+            {currentPage > 3 && (
+              <>
+                <button onClick={() => { setCurrentPage(1); load(1, statusFilter); }}
+                  className="w-8 h-8 rounded-lg text-xs" style={{ background: 'var(--secondary)', color: 'var(--secondary-foreground)' }}>1</button>
+                {currentPage > 4 && <span className="w-8 h-8 flex items-center justify-center text-xs" style={{ color: 'var(--muted-foreground)' }}>...</span>}
+              </>
+            )}
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              const page = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i;
+              if (page > totalPages) return null;
+              return (
+                <button key={page} onClick={() => { setCurrentPage(page); load(page, statusFilter); }}
+                  className="w-8 h-8 rounded-lg text-xs font-medium"
+                  style={{
+                    background: page === currentPage ? 'var(--primary)' : 'var(--secondary)',
+                    color: page === currentPage ? 'white' : 'var(--secondary-foreground)',
+                  }}>{page}</button>
+              );
+            })}
+            {currentPage < totalPages - 2 && (
+              <>
+                {currentPage < totalPages - 3 && <span className="w-8 h-8 flex items-center justify-center text-xs" style={{ color: 'var(--muted-foreground)' }}>...</span>}
+                <button onClick={() => { setCurrentPage(totalPages); load(totalPages, statusFilter); }}
+                  className="w-8 h-8 rounded-lg text-xs" style={{ background: 'var(--secondary)', color: 'var(--secondary-foreground)' }}>{totalPages}</button>
+              </>
+            )}
+          </div>
+          <button
+            onClick={() => { const p = Math.min(totalPages, currentPage + 1); setCurrentPage(p); load(p, statusFilter); }}
+            disabled={currentPage >= totalPages}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-30"
+            style={{ background: 'var(--secondary)', color: 'var(--secondary-foreground)' }}>
+            Next &rarr;
+          </button>
+        </div>
+      )}
 
       {activeKit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>

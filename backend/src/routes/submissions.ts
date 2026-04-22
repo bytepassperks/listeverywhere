@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { query, queryOne } from '../db/pool';
-import { getSubmissionsByCompany, getSubmissionStatusCounts, updateSubmissionStatus } from '../services/statusTracker';
+import { getSubmissionsByCompanyPaginated, getSubmissionStatusCounts, updateSubmissionStatus } from '../services/statusTracker';
 import { generateManualKit } from '../services/manualKitGenerator';
 import { generateEmailKit } from '../services/emailKitGenerator';
 import { generatePayload } from '../services/payloadGenerator';
@@ -24,24 +24,34 @@ interface SubmissionRow {
 export async function submissionRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preValidation', app.authenticate);
 
-  app.get<{ Params: { companyId: string } }>('/api/submissions/:companyId', async (request, reply) => {
-    const userId = request.userId!;
-    const { companyId } = request.params;
+  app.get<{ Params: { companyId: string }; Querystring: { page?: string; limit?: string; status?: string } }>(
+    '/api/submissions/:companyId',
+    async (request, reply) => {
+      const userId = request.userId!;
+      const { companyId } = request.params;
+      const page = parseInt(request.query.page || '1', 10);
+      const limit = Math.min(parseInt(request.query.limit || '50', 10), 200);
+      const statusFilter = request.query.status;
 
-    const company = await queryOne<{ id: string }>(
-      'SELECT id FROM companies WHERE id = $1 AND user_id = $2',
-      [companyId, userId]
-    );
+      const company = await queryOne<{ id: string }>(
+        'SELECT id FROM companies WHERE id = $1 AND user_id = $2',
+        [companyId, userId]
+      );
 
-    if (!company) {
-      return reply.status(404).send({ error: 'Company not found' });
+      if (!company) {
+        return reply.status(404).send({ error: 'Company not found' });
+      }
+
+      const { submissions, total } = await getSubmissionsByCompanyPaginated(companyId, page, limit, statusFilter);
+      const statusCounts = await getSubmissionStatusCounts(companyId);
+
+      return reply.send({
+        submissions,
+        statusCounts,
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      });
     }
-
-    const submissions = await getSubmissionsByCompany(companyId);
-    const statusCounts = await getSubmissionStatusCounts(companyId);
-
-    return reply.send({ submissions, statusCounts });
-  });
+  );
 
   app.patch<{
     Params: { id: string };
