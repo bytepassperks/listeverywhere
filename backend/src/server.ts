@@ -29,7 +29,9 @@ async function buildApp() {
   });
 
   await app.register(cors, {
-    origin: env.NODE_ENV === 'production' ? env.FRONTEND_URL : true,
+    origin: env.NODE_ENV === 'production'
+      ? [env.FRONTEND_URL, 'https://listeverywhere-frontend.onrender.com', 'https://app.listgenius.net']
+      : true,
     credentials: true,
   });
 
