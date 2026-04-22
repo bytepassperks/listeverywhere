@@ -80,7 +80,7 @@ class ApiClient {
   }
 
   async logout() {
-    await this.request('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    await this.request('/api/auth/logout', { method: 'POST', body: JSON.stringify({}) }).catch(() => {});
     this.clearToken();
   }
 
@@ -108,7 +108,7 @@ class ApiClient {
   }
 
   async resubmitFailed(companyId: string) {
-    return this.request<{ message: string }>(`/api/companies/${companyId}/resubmit`, { method: 'POST' });
+    return this.request<{ message: string }>(`/api/companies/${companyId}/resubmit`, { method: 'POST', body: JSON.stringify({}) });
   }
 
   async getSubmissions(companyId: string, page: number = 1, limit: number = 50, status?: string) {
@@ -166,6 +166,7 @@ class ApiClient {
   async backfillSubmissions(companyId: string) {
     return this.request<{ message: string; created: number }>(`/api/companies/${companyId}/backfill-submissions`, {
       method: 'POST',
+      body: JSON.stringify({}),
     });
   }
 }
