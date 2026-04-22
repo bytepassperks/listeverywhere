@@ -258,10 +258,17 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
 
+-- Remove duplicate url_template rows before adding unique constraint
+DELETE FROM backlink_endpoints WHERE ctid NOT IN (
+  SELECT MIN(ctid) FROM backlink_endpoints GROUP BY url_template
+);
+
 -- Add unique constraint on url_template if not exists
 DO $$ BEGIN
   ALTER TABLE backlink_endpoints ADD CONSTRAINT backlink_endpoints_url_template_key UNIQUE (url_template);
 EXCEPTION WHEN duplicate_object THEN NULL;
+  WHEN unique_violation THEN NULL;
+  WHEN others THEN NULL;
 END $$;
 
 -- Endpoint Discovery Log (tracks each discovery run)
