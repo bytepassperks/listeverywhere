@@ -1401,9 +1401,15 @@ export default function IndexerProjectPage() {
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   onClick={async () => {
-                    const url = await api.getExportUrl(projectId, 'csv');
                     const token = localStorage.getItem('le_token');
-                    window.open(`${url}&token=${token}`, '_blank');
+                    const url = api.getExportUrl(projectId, 'csv');
+                    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+                    const blob = await res.blob();
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `backlinks-${projectId}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(a.href);
                   }}
                   style={{ padding: '8px 16px', borderRadius: 6, background: '#3f51b5', color: 'white', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
                 >
@@ -1411,9 +1417,15 @@ export default function IndexerProjectPage() {
                 </button>
                 <button
                   onClick={async () => {
-                    const url = await api.getExportUrl(projectId, 'json');
                     const token = localStorage.getItem('le_token');
-                    window.open(`${url}&token=${token}`, '_blank');
+                    const url = api.getExportUrl(projectId, 'json');
+                    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+                    const blob = await res.blob();
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `backlinks-${projectId}.json`;
+                    a.click();
+                    URL.revokeObjectURL(a.href);
                   }}
                   style={{ padding: '8px 16px', borderRadius: 6, background: 'var(--border)', color: 'var(--foreground)', border: 'none', cursor: 'pointer', fontSize: 13 }}
                 >
