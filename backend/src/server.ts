@@ -177,13 +177,6 @@ async function runCriticalSetup() {
   }
 
   try {
-    await runBacklinkEnhancementMigrations();
-    console.log('Backlink enhancement migrations completed');
-  } catch (err) {
-    console.error('Backlink enhancement migration error (continuing anyway):', err);
-  }
-
-  try {
     await seedSuperAdmin();
     console.log('Super admin seed check completed');
   } catch (err) {
@@ -193,6 +186,13 @@ async function runCriticalSetup() {
 
 async function runHeavyBackgroundTasks() {
   console.log('[Background] Starting heavy background tasks (delayed 2min)...');
+
+  try {
+    await runBacklinkEnhancementMigrations();
+    console.log('Backlink enhancement migrations completed');
+  } catch (err) {
+    console.error('Backlink enhancement migration error (continuing anyway):', err);
+  }
 
   try {
     await seedDirectories();
