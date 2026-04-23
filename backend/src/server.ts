@@ -13,7 +13,7 @@ import { demoVideoRoutes } from './routes/demoVideo';
 import { indexerRoutes } from './routes/indexer';
 import path from 'path';
 import fs from 'fs';
-import { runMigrations } from './db/migrate';
+import { runMigrations, runBacklinkEnhancementMigrations } from './db/migrate';
 import { seedDirectories, seedSuperAdmin } from './db/seed';
 
 declare module 'fastify' {
@@ -174,6 +174,11 @@ async function start() {
   try {
     await app.listen({ port: env.PORT, host: '0.0.0.0' });
     console.log(`Server running on port ${env.PORT}`);
+
+    // Run backlink enhancement migrations in background (non-blocking)
+    runBacklinkEnhancementMigrations().catch(err =>
+      console.error('Backlink enhancement migrations error:', err)
+    );
 
     // Start 6-hour background workers for endpoint discovery + auto-submit
     startBackgroundWorkers();

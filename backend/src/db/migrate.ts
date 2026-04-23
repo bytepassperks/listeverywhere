@@ -330,35 +330,18 @@ CREATE INDEX IF NOT EXISTS idx_backlink_results_project_id ON backlink_results(p
 CREATE INDEX IF NOT EXISTS idx_backlink_results_status ON backlink_results(status);
 CREATE INDEX IF NOT EXISTS idx_indexer_activity_log_project_id ON indexer_activity_log(project_id);
 
--- Add geo_region column to backlink_endpoints for geo-targeting
-DO $$ BEGIN
-  ALTER TABLE backlink_endpoints ADD COLUMN IF NOT EXISTS geo_region VARCHAR(10);
-EXCEPTION WHEN duplicate_column THEN NULL;
-END $$;
-
--- Add anchor_text column to backlink_results for anchor text optimization
-DO $$ BEGIN
-  ALTER TABLE backlink_results ADD COLUMN IF NOT EXISTS anchor_text TEXT;
-EXCEPTION WHEN duplicate_column THEN NULL;
-END $$;
-
--- Add tier column to backlink_results for tiered link building
-DO $$ BEGIN
-  ALTER TABLE backlink_results ADD COLUMN IF NOT EXISTS tier INTEGER DEFAULT 1;
-EXCEPTION WHEN duplicate_column THEN NULL;
-END $$;
-
--- Add parent_backlink_id for tier 2 links referencing tier 1 (no FK for performance)
-DO $$ BEGIN
-  ALTER TABLE backlink_results ADD COLUMN IF NOT EXISTS parent_backlink_id UUID;
-EXCEPTION WHEN duplicate_column THEN NULL;
-END $$;
-
--- Index for DA-based queries
-CREATE INDEX IF NOT EXISTS idx_backlink_endpoints_da ON backlink_endpoints(domain_authority);
-CREATE INDEX IF NOT EXISTS idx_backlink_endpoints_geo ON backlink_endpoints(geo_region);
-CREATE INDEX IF NOT EXISTS idx_backlink_results_tier ON backlink_results(tier);
 `;
+
+// Backlink enhancement columns — run separately after server starts to avoid blocking startup
+const backlinkEnhancementMigrations = [
+  `ALTER TABLE backlink_endpoints ADD COLUMN IF NOT EXISTS geo_region VARCHAR(10)`,
+  `ALTER TABLE backlink_results ADD COLUMN IF NOT EXISTS anchor_text TEXT`,
+  `ALTER TABLE backlink_results ADD COLUMN IF NOT EXISTS tier INTEGER DEFAULT 1`,
+  `ALTER TABLE backlink_results ADD COLUMN IF NOT EXISTS parent_backlink_id UUID`,
+  `CREATE INDEX IF NOT EXISTS idx_backlink_endpoints_da ON backlink_endpoints(domain_authority)`,
+  `CREATE INDEX IF NOT EXISTS idx_backlink_endpoints_geo ON backlink_endpoints(geo_region)`,
+  `CREATE INDEX IF NOT EXISTS idx_backlink_results_tier ON backlink_results(tier)`,
+];
 
 export async function runMigrations() {
   console.log('Running database migrations...');
@@ -369,6 +352,22 @@ export async function runMigrations() {
     console.error('Migration failed:', error);
     throw error;
   }
+}
+
+export async function runBacklinkEnhancementMigrations() {
+  console.log('Running backlink enhancement migrations (async)...');
+  for (const sql of backlinkEnhancementMigrations) {
+    try {
+      await pool.query(sql);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('already exists') || msg.includes('duplicate_column')) {
+        continue;
+      }
+      console.error('Backlink enhancement migration warning:', msg);
+    }
+  }
+  console.log('Backlink enhancement migrations completed.');
 }
 
 if (require.main === module) {
