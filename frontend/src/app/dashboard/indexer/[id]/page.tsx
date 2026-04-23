@@ -1063,10 +1063,10 @@ export default function IndexerProjectPage() {
             </div>
           )}
 
-          {/* Row 1: Verify + Health Monitor + DA Scoring */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+          {/* All 10 Backlink Tools in a single grid, ordered 1-10 */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
             {/* 1. Verification Crawler */}
-            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)' }}>
+            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)', order: 1 }}>
               <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>1. Backlink Verification</h3>
               <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
                 Revisit submitted backlinks to verify your URL exists on the page. Marks as verified, pending, or dead.
@@ -1089,7 +1089,7 @@ export default function IndexerProjectPage() {
             </div>
 
             {/* 5. Health Monitor */}
-            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)' }}>
+            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)', order: 5 }}>
               <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>5. Health Monitor</h3>
               <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
                 Check all backlinks for dead links (404, removed). Auto-creates alerts for dead links found.
@@ -1135,7 +1135,7 @@ export default function IndexerProjectPage() {
             </div>
 
             {/* 2. DA Scoring */}
-            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)' }}>
+            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)', order: 2 }}>
               <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>2. Domain Authority Scoring</h3>
               <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
                 Score all 192K+ endpoints by estimated Domain Authority. Prioritize high-DA backlinks.
@@ -1176,12 +1176,9 @@ export default function IndexerProjectPage() {
                 </div>
               )}
             </div>
-          </div>
 
-          {/* Row 2: Competitor Analysis + Anchor Text + Geo-Targeting */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
             {/* 4. Competitor Analysis */}
-            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)' }}>
+            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)', order: 4 }}>
               <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>4. Competitor Backlink Analysis</h3>
               <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
                 Enter a competitor domain to discover where they have backlinks, then submit to the same endpoints.
@@ -1225,7 +1222,7 @@ export default function IndexerProjectPage() {
             </div>
 
             {/* 3. Anchor Text Optimization */}
-            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)' }}>
+            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)', order: 3 }}>
               <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>3. Anchor Text Optimization</h3>
               <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
                 AI-generated keyword-rich anchor text variations. Different anchors per endpoint to look natural.
@@ -1263,7 +1260,7 @@ export default function IndexerProjectPage() {
             </div>
 
             {/* 6. Geo-Targeted */}
-            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)' }}>
+            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)', order: 6 }}>
               <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>6. Geo-Targeted Backlinks</h3>
               <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
                 Filter endpoints by country/region. Prioritize endpoints matching your target audience.
@@ -1311,12 +1308,8 @@ export default function IndexerProjectPage() {
                 </div>
               )}
             </div>
-          </div>
-
-          {/* Row 3: Tier 2 + Smart Schedule + Export + Disavow */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
             {/* 7. Tiered Link Building */}
-            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)' }}>
+            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)', order: 7 }}>
               <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>7. Tiered Link Building</h3>
               <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
                 Build Tier 2 backlinks TO your existing backlinks. Submits your WHOIS/BuiltWith pages to social bookmarks.
@@ -1345,7 +1338,7 @@ export default function IndexerProjectPage() {
             </div>
 
             {/* 9. Smart Scheduling */}
-            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)' }}>
+            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)', order: 9 }}>
               <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>9. Smart Scheduling</h3>
               <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
                 AI-optimized submission timing. Ramps up gradually, rotates categories, varies time slots.
@@ -1393,7 +1386,7 @@ export default function IndexerProjectPage() {
             </div>
 
             {/* 8. Export Report */}
-            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)' }}>
+            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)', order: 8 }}>
               <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>8. Backlink Report Export</h3>
               <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
                 Download a full backlink report as CSV or JSON. Includes status, DA scores, and categories.
@@ -1435,7 +1428,7 @@ export default function IndexerProjectPage() {
             </div>
 
             {/* 10. Disavow Generator */}
-            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)' }}>
+            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)', order: 10 }}>
               <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>10. Disavow List Generator</h3>
               <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
                 Auto-generate a Google disavow file for toxic/dead backlinks. Upload to Google Search Console.
