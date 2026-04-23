@@ -159,11 +159,16 @@ async function start() {
     process.exit(1);
   }
 
-  // Run all setup tasks in background AFTER port is bound
-  runPostStartup().catch(err => console.error('Post-startup error:', err));
+  // Run critical setup (migrations + super admin) immediately
+  runCriticalSetup().catch(err => console.error('Critical setup error:', err));
+
+  // Delay heavy background tasks by 2 minutes so login/API is responsive
+  setTimeout(() => {
+    runHeavyBackgroundTasks().catch(err => console.error('Background tasks error:', err));
+  }, 2 * 60 * 1000);
 }
 
-async function runPostStartup() {
+async function runCriticalSetup() {
   try {
     await runMigrations();
     console.log('Database migrations completed');
@@ -179,17 +184,21 @@ async function runPostStartup() {
   }
 
   try {
-    await seedDirectories();
-    console.log('Directory seed check completed');
-  } catch (err) {
-    console.error('Seed error (continuing anyway):', err);
-  }
-
-  try {
     await seedSuperAdmin();
     console.log('Super admin seed check completed');
   } catch (err) {
     console.error('Super admin seed error (continuing anyway):', err);
+  }
+}
+
+async function runHeavyBackgroundTasks() {
+  console.log('[Background] Starting heavy background tasks (delayed 2min)...');
+
+  try {
+    await seedDirectories();
+    console.log('Directory seed check completed');
+  } catch (err) {
+    console.error('Seed error (continuing anyway):', err);
   }
 
   // Start 6-hour background workers for endpoint discovery + auto-submit
