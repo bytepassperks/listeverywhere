@@ -346,6 +346,15 @@ const backlinkEnhancementMigrations = [
 export async function runMigrations() {
   console.log('Running database migrations...');
   try {
+    // Check if core tables already exist (from previous successful deploys)
+    // If so, skip the heavy migration to avoid locking the DB and blocking login
+    const check = await pool.query(
+      "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'indexer_activity_log')"
+    );
+    if (check.rows[0].exists) {
+      console.log('All tables already exist — skipping base migration.');
+      return;
+    }
     await pool.query(migration);
     console.log('Migrations completed successfully.');
   } catch (error) {
