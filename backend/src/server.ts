@@ -148,11 +148,34 @@ async function buildApp() {
 }
 
 async function start() {
+  // Build and listen FIRST so Render detects the port immediately
+  const app = await buildApp();
+
+  try {
+    await app.listen({ port: env.PORT, host: '0.0.0.0' });
+    console.log(`Server running on port ${env.PORT}`);
+  } catch (err) {
+    app.log.error(err);
+    process.exit(1);
+  }
+
+  // Run all setup tasks in background AFTER port is bound
+  runPostStartup().catch(err => console.error('Post-startup error:', err));
+}
+
+async function runPostStartup() {
   try {
     await runMigrations();
     console.log('Database migrations completed');
   } catch (err) {
     console.error('Migration error (continuing anyway):', err);
+  }
+
+  try {
+    await runBacklinkEnhancementMigrations();
+    console.log('Backlink enhancement migrations completed');
+  } catch (err) {
+    console.error('Backlink enhancement migration error (continuing anyway):', err);
   }
 
   try {
@@ -169,26 +192,11 @@ async function start() {
     console.error('Super admin seed error (continuing anyway):', err);
   }
 
-  const app = await buildApp();
+  // Start 6-hour background workers for endpoint discovery + auto-submit
+  startBackgroundWorkers();
 
-  try {
-    await app.listen({ port: env.PORT, host: '0.0.0.0' });
-    console.log(`Server running on port ${env.PORT}`);
-
-    // Run backlink enhancement migrations in background (non-blocking)
-    runBacklinkEnhancementMigrations().catch(err =>
-      console.error('Backlink enhancement migrations error:', err)
-    );
-
-    // Start 6-hour background workers for endpoint discovery + auto-submit
-    startBackgroundWorkers();
-
-    // Auto-seed backlink endpoints in background if count is low
-    autoSeedEndpoints();
-  } catch (err) {
-    app.log.error(err);
-    process.exit(1);
-  }
+  // Auto-seed backlink endpoints in background if count is low
+  autoSeedEndpoints();
 }
 
 async function autoSeedEndpoints() {
