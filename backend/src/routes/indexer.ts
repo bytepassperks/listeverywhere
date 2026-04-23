@@ -817,9 +817,17 @@ export async function indexerRoutes(app: FastifyInstance) {
   // 7. Build Tier 2 links
   app.post('/api/indexer/projects/:id/backlinks/tier2', { preHandler: [app.authenticate] }, async (request: FastifyRequest) => {
     const { id } = request.params as { id: string };
-    const { backlink_ids, max_per_backlink } = request.body as { backlink_ids: string[]; max_per_backlink?: number };
-    if (!backlink_ids || backlink_ids.length === 0) return { error: 'backlink_ids required' };
-    const result = await buildTier2Links(id, backlink_ids, max_per_backlink || 20);
+    const body = (request.body || {}) as { backlink_ids?: string[]; max_per_backlink?: number };
+    let backlinkIds = body.backlink_ids;
+    if (!backlinkIds || backlinkIds.length === 0) {
+      const existing = await pool.query(
+        'SELECT id FROM backlink_results WHERE project_id = $1 AND tier = 1 LIMIT 50',
+        [id]
+      );
+      backlinkIds = existing.rows.map((r: { id: string }) => r.id);
+      if (backlinkIds.length === 0) return { totalSubmitted: 0, results: [], message: 'No tier 1 backlinks found. Build backlinks first.' };
+    }
+    const result = await buildTier2Links(id, backlinkIds, body.max_per_backlink || 20);
     return result;
   });
 

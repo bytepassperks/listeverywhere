@@ -575,10 +575,10 @@ export async function buildTier2Links(
 
         if (response.ok || response.status === 301 || response.status === 302 || response.status === 403) {
           await pool.query(
-            `INSERT INTO backlink_results (project_id, endpoint_id, endpoint_name, endpoint_category, target_url, backlink_url, status, http_status)
-             VALUES ($1, $2, $3, $4, $5, $6, 'submitted', $7)
+            `INSERT INTO backlink_results (project_id, endpoint_id, target_url, backlink_url, status, http_status, tier)
+             VALUES ($1, $2, $3, $4, 'submitted', $5, 2)
              ON CONFLICT DO NOTHING`,
-            [projectId, ep.id, `T2: ${ep.name}`, `tier2_${ep.category}`, tier1Url, resolvedUrl, response.status]
+            [projectId, ep.id, tier1Url, resolvedUrl, response.status]
           );
           tier2Count++;
           totalSubmitted++;
@@ -611,7 +611,7 @@ export async function generateBacklinkReport(
   const domain = project.rows[0]?.domain || 'unknown';
 
   const backlinks = await pool.query(
-    `SELECT br.endpoint_name, br.endpoint_category, br.target_url, br.backlink_url,
+    `SELECT be.name as endpoint_name, be.category as endpoint_category, br.target_url, br.backlink_url,
             br.status, br.http_status, br.submitted_at, br.verified_at,
             be.domain_authority, be.is_dofollow
      FROM backlink_results br
@@ -766,7 +766,7 @@ export async function generateDisavowList(projectId: string): Promise<{
 }> {
   // Find toxic/dead backlinks
   const toxicResults = await pool.query(
-    `SELECT br.backlink_url, br.endpoint_name, br.status, br.http_status,
+    `SELECT br.backlink_url, be.name as endpoint_name, br.status, br.http_status,
             be.domain_authority, be.success_rate
      FROM backlink_results br
      LEFT JOIN backlink_endpoints be ON br.endpoint_id = be.id
