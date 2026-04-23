@@ -1364,7 +1364,7 @@ export default function IndexerProjectPage() {
                     setToolsLoading(null);
                   }}
                   disabled={toolsLoading === 'schedule'}
-                  style={{ padding: '8px 16px', borderRadius: 6, background: '#607d8b', color: 'white', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                  style={{ padding: '8px 16px', borderRadius: 6, background: '#607d8b', color: 'white', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}
                 >
                   {toolsLoading === 'schedule' ? 'Planning...' : 'Generate Plan'}
                 </button>
