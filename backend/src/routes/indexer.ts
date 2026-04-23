@@ -10,6 +10,14 @@ import { submitToLLMEngines, checkLLMVisibility, getLLMEngineInfo } from '../ser
 import { runDiscovery, getDiscoveryStats } from '../workers/endpointDiscoveryWorker';
 import { runAutoSubmit } from '../workers/autoSubmitWorker';
 import { getAlerts, markAlertRead, markAllAlertsRead, generateWeeklyDigest, getUnreadAlertCount } from '../workers/alertSystem';
+import {
+  verifyBacklinks, scoreEndpointDA, getDADistribution,
+  generateAnchorTexts, analyzeCompetitorBacklinks,
+  runHealthCheck, getHealthSummary,
+  getGeoEndpoints, getAvailableRegions,
+  buildTier2Links, generateBacklinkReport,
+  generateSmartSchedule, generateDisavowList,
+} from '../services/backlinkEnhancements';
 
 export async function indexerRoutes(app: FastifyInstance) {
   // ==========================================
@@ -737,5 +745,123 @@ export async function indexerRoutes(app: FastifyInstance) {
       recentDiscoveries: recentDiscovery.rows,
       dailyGrowth: growth.rows,
     };
+  });
+
+  // ==========================================
+  // BACKLINK ENHANCEMENTS (10 features)
+  // ==========================================
+
+  // 1. Verify backlinks
+  app.post('/api/indexer/projects/:id/backlinks/verify', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const { batch_size } = (request.body as { batch_size?: number }) || {};
+    const result = await verifyBacklinks(id, batch_size || 50);
+    return result;
+  });
+
+  // 2. Score endpoint DA
+  app.post('/api/indexer/endpoints/score-da', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    if (request.userRole !== 'super_admin') return reply.status(403).send({ error: 'Super admin only' });
+    scoreEndpointDA(5000).then(r => console.log(`[DA] Scored ${r.scored} endpoints`)).catch(console.error);
+    return { message: 'DA scoring started in background' };
+  });
+
+  // 2b. Get DA distribution
+  app.get('/api/indexer/endpoints/da-distribution', { preHandler: [app.authenticate] }, async () => {
+    return { distribution: await getDADistribution() };
+  });
+
+  // 3. Generate anchor texts
+  app.post('/api/indexer/projects/:id/anchor-texts', { preHandler: [app.authenticate] }, async (request: FastifyRequest) => {
+    const { id } = request.params as { id: string };
+    const { domain, companyName, description, keywords } = request.body as {
+      domain: string; companyName: string; description: string; keywords: string[];
+    };
+    const anchors = await generateAnchorTexts(id, domain, companyName, description, keywords || []);
+    return { anchors };
+  });
+
+  // 4. Competitor backlink analysis
+  app.post('/api/indexer/projects/:id/competitor-analysis', { preHandler: [app.authenticate] }, async (request: FastifyRequest) => {
+    const { id } = request.params as { id: string };
+    const { competitor_domain } = request.body as { competitor_domain: string };
+    if (!competitor_domain) return { error: 'competitor_domain required' };
+    const result = await analyzeCompetitorBacklinks(id, competitor_domain);
+    return result;
+  });
+
+  // 5. Health check
+  app.post('/api/indexer/projects/:id/backlinks/health-check', { preHandler: [app.authenticate] }, async (request: FastifyRequest) => {
+    const { id } = request.params as { id: string };
+    const result = await runHealthCheck(id);
+    return result;
+  });
+
+  // 5b. Health summary
+  app.get('/api/indexer/projects/:id/backlinks/health-summary', { preHandler: [app.authenticate] }, async (request: FastifyRequest) => {
+    const { id } = request.params as { id: string };
+    return await getHealthSummary(id);
+  });
+
+  // 6. Geo-targeted endpoints
+  app.get('/api/indexer/endpoints/geo', { preHandler: [app.authenticate] }, async (request: FastifyRequest) => {
+    const { region, category, limit } = request.query as { region?: string; category?: string; limit?: string };
+    return await getGeoEndpoints(region || 'GLOBAL', category, parseInt(limit || '100'));
+  });
+
+  // 6b. Available regions
+  app.get('/api/indexer/endpoints/regions', { preHandler: [app.authenticate] }, async () => {
+    return { regions: getAvailableRegions() };
+  });
+
+  // 7. Build Tier 2 links
+  app.post('/api/indexer/projects/:id/backlinks/tier2', { preHandler: [app.authenticate] }, async (request: FastifyRequest) => {
+    const { id } = request.params as { id: string };
+    const { backlink_ids, max_per_backlink } = request.body as { backlink_ids: string[]; max_per_backlink?: number };
+    if (!backlink_ids || backlink_ids.length === 0) return { error: 'backlink_ids required' };
+    const result = await buildTier2Links(id, backlink_ids, max_per_backlink || 20);
+    return result;
+  });
+
+  // 8. Export report
+  app.get('/api/indexer/projects/:id/backlinks/export', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const { format } = request.query as { format?: string };
+    const report = await generateBacklinkReport(id, (format as 'csv' | 'json') || 'csv');
+    reply.header('Content-Type', report.contentType);
+    reply.header('Content-Disposition', `attachment; filename="${report.filename}"`);
+    return reply.send(report.data);
+  });
+
+  // 9. Smart scheduling
+  app.post('/api/indexer/projects/:id/smart-schedule', { preHandler: [app.authenticate] }, async (request: FastifyRequest) => {
+    const { id } = request.params as { id: string };
+    const { domain_age, target_region } = request.body as { domain_age?: string; target_region?: string };
+
+    const endpointCount = await pool.query('SELECT COUNT(*) FROM backlink_endpoints WHERE active = true');
+    const project = await pool.query('SELECT domain FROM indexer_projects WHERE id = $1', [id]);
+
+    const schedule = generateSmartSchedule({
+      projectId: id,
+      domain: project.rows[0]?.domain || '',
+      totalEndpoints: parseInt(endpointCount.rows[0].count),
+      domainAge: domain_age,
+      targetRegion: target_region,
+    });
+    return schedule;
+  });
+
+  // 10. Disavow list
+  app.get('/api/indexer/projects/:id/disavow', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const { download } = request.query as { download?: string };
+    const result = await generateDisavowList(id);
+
+    if (download === 'true') {
+      reply.header('Content-Type', 'text/plain');
+      reply.header('Content-Disposition', `attachment; filename="${result.filename}"`);
+      return reply.send(result.disavowContent);
+    }
+    return result;
   });
 }

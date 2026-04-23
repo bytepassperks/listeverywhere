@@ -404,6 +404,114 @@ class ApiClient {
   async getEndpointStats() {
     return this.request<EndpointStats>('/api/indexer/endpoints/stats');
   }
+
+  // === Backlink Enhancement APIs ===
+
+  // 1. Verify backlinks
+  async verifyBacklinks(projectId: string, batchSize = 50) {
+    return this.request<{ verified: number; dead: number; pending: number; errors: number }>(
+      `/api/indexer/projects/${projectId}/backlinks/verify`,
+      { method: 'POST', body: JSON.stringify({ batch_size: batchSize }) }
+    );
+  }
+
+  // 2. Score DA
+  async scoreEndpointDA() {
+    return this.request<{ message: string }>('/api/indexer/endpoints/score-da', {
+      method: 'POST', body: JSON.stringify({}),
+    });
+  }
+
+  async getDADistribution() {
+    return this.request<{ distribution: Array<{ range: string; count: number }> }>('/api/indexer/endpoints/da-distribution');
+  }
+
+  // 3. Anchor texts
+  async generateAnchorTexts(projectId: string, data: { domain: string; companyName: string; description: string; keywords: string[] }) {
+    return this.request<{ anchors: Array<{ type: string; text: string }> }>(
+      `/api/indexer/projects/${projectId}/anchor-texts`,
+      { method: 'POST', body: JSON.stringify(data) }
+    );
+  }
+
+  // 4. Competitor analysis
+  async analyzeCompetitor(projectId: string, competitorDomain: string) {
+    return this.request<{
+      domain: string; backlinksFound: number; matchingEndpoints: number;
+      newEndpoints: number; sources: Array<{ url: string; type: string; da: number }>;
+    }>(
+      `/api/indexer/projects/${projectId}/competitor-analysis`,
+      { method: 'POST', body: JSON.stringify({ competitor_domain: competitorDomain }) }
+    );
+  }
+
+  // 5. Health check
+  async runHealthCheck(projectId: string) {
+    return this.request<{ checked: number; healthy: number; dead: number; degraded: number }>(
+      `/api/indexer/projects/${projectId}/backlinks/health-check`,
+      { method: 'POST', body: JSON.stringify({}) }
+    );
+  }
+
+  async getHealthSummary(projectId: string) {
+    return this.request<{
+      total: number; verified: number; dead: number; submitted: number; pending: number;
+      recentChecks: Array<{ date: string; healthy: number; dead: number }>;
+    }>(`/api/indexer/projects/${projectId}/backlinks/health-summary`);
+  }
+
+  // 6. Geo endpoints
+  async getGeoEndpoints(region: string, category?: string, limit = 100) {
+    const params = new URLSearchParams({ region, limit: String(limit) });
+    if (category) params.set('category', category);
+    return this.request<{
+      endpoints: Array<{ id: string; name: string; url_template: string; category: string; domain_authority: number | null }>;
+      total: number;
+    }>(`/api/indexer/endpoints/geo?${params.toString()}`);
+  }
+
+  async getAvailableRegions() {
+    return this.request<{ regions: Array<{ code: string; name: string; tlds: string[] }> }>('/api/indexer/endpoints/regions');
+  }
+
+  // 7. Tier 2
+  async buildTier2Links(projectId: string, backlinkIds: string[], maxPerBacklink = 20) {
+    return this.request<{
+      totalSubmitted: number; results: Array<{ tier1Url: string; tier2Count: number }>;
+    }>(
+      `/api/indexer/projects/${projectId}/backlinks/tier2`,
+      { method: 'POST', body: JSON.stringify({ backlink_ids: backlinkIds, max_per_backlink: maxPerBacklink }) }
+    );
+  }
+
+  // 8. Export
+  getExportUrl(projectId: string, format: 'csv' | 'json' = 'csv') {
+    return `${API_BASE}/api/indexer/projects/${projectId}/backlinks/export?format=${format}`;
+  }
+
+  // 9. Smart schedule
+  async getSmartSchedule(projectId: string, domainAge?: string, targetRegion?: string) {
+    return this.request<{
+      dailyLimit: number; durationDays: number;
+      schedule: Array<{ day: number; count: number; categories: string[]; timeSlots: string[] }>;
+      reasoning: string;
+    }>(
+      `/api/indexer/projects/${projectId}/smart-schedule`,
+      { method: 'POST', body: JSON.stringify({ domain_age: domainAge, target_region: targetRegion }) }
+    );
+  }
+
+  // 10. Disavow
+  async getDisavowList(projectId: string) {
+    return this.request<{
+      disavowContent: string; filename: string; totalDisavowed: number;
+      domains: string[]; reasons: Array<{ domain: string; reason: string }>;
+    }>(`/api/indexer/projects/${projectId}/disavow`);
+  }
+
+  getDownloadDisavowUrl(projectId: string) {
+    return `${API_BASE}/api/indexer/projects/${projectId}/disavow?download=true`;
+  }
 }
 
 export const api = new ApiClient();

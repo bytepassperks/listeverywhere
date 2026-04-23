@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api, IndexerProject, IndexerUrl, IndexerActivity, BacklinkResult, Campaign, IndexerAlert, EndpointStats } from '@/lib/api';
 
-type Tab = 'urls' | 'backlinks' | 'campaigns' | 'llm' | 'alerts' | 'activity';
+type Tab = 'urls' | 'backlinks' | 'campaigns' | 'llm' | 'alerts' | 'activity' | 'tools';
 
 export default function IndexerProjectPage() {
   const params = useParams();
@@ -54,6 +54,21 @@ export default function IndexerProjectPage() {
   const [endpointStats, setEndpointStats] = useState<EndpointStats | null>(null);
   const [runningDiscovery, setRunningDiscovery] = useState(false);
   const [runningAutoSubmit, setRunningAutoSubmit] = useState(false);
+
+  // Backlink Tools state
+  const [toolsResult, setToolsResult] = useState<string | null>(null);
+  const [toolsLoading, setToolsLoading] = useState<string | null>(null);
+  const [competitorDomain, setCompetitorDomain] = useState('');
+  const [competitorResult, setCompetitorResult] = useState<{ domain: string; backlinksFound: number; matchingEndpoints: number; sources: Array<{ url: string; type: string; da: number }> } | null>(null);
+  const [healthSummary, setHealthSummary] = useState<{ total: number; verified: number; dead: number; submitted: number; pending: number; recentChecks: Array<{ date: string; healthy: number; dead: number }> } | null>(null);
+  const [daDistribution, setDADistribution] = useState<Array<{ range: string; count: number }>>([]);
+  const [anchorTexts, setAnchorTexts] = useState<Array<{ type: string; text: string }>>([]);
+  const [geoRegion, setGeoRegion] = useState('GLOBAL');
+  const [geoEndpoints, setGeoEndpoints] = useState<{ endpoints: Array<{ id: string; name: string; url_template: string; category: string; domain_authority: number | null }>; total: number } | null>(null);
+  const [regions, setRegions] = useState<Array<{ code: string; name: string; tlds: string[] }>>([]);
+  const [smartSchedule, setSmartSchedule] = useState<{ dailyLimit: number; durationDays: number; schedule: Array<{ day: number; count: number; categories: string[]; timeSlots: string[] }>; reasoning: string } | null>(null);
+  const [domainAge, setDomainAge] = useState('established');
+  const [disavowData, setDisavowData] = useState<{ disavowContent: string; filename: string; totalDisavowed: number; domains: string[]; reasons: Array<{ domain: string; reason: string }> } | null>(null);
 
   const loadProject = useCallback(async () => {
     try {
@@ -493,6 +508,7 @@ export default function IndexerProjectPage() {
           { id: 'campaigns' as Tab, label: 'Drip-Feed Campaigns' },
           { id: 'llm' as Tab, label: 'LLM Indexing' },
           { id: 'alerts' as Tab, label: `Alerts & Discovery${unreadAlertCount > 0 ? ` (${unreadAlertCount})` : ''}` },
+          { id: 'tools' as Tab, label: 'Backlink Tools' },
           { id: 'activity' as Tab, label: 'Activity Log' },
         ]).map((tab) => (
           <button
@@ -1034,6 +1050,429 @@ export default function IndexerProjectPage() {
                 </div>
               ))
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Backlink Tools Tab */}
+      {activeTab === 'tools' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {toolsResult && (
+            <div style={{ padding: '12px 16px', borderRadius: 8, background: '#e8f5e9', color: '#2e7d32', fontSize: 13, border: '1px solid #a5d6a7' }}>
+              {toolsResult}
+            </div>
+          )}
+
+          {/* Row 1: Verify + Health Monitor + DA Scoring */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+            {/* 1. Verification Crawler */}
+            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>1. Backlink Verification</h3>
+              <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
+                Revisit submitted backlinks to verify your URL exists on the page. Marks as verified, pending, or dead.
+              </p>
+              <button
+                onClick={async () => {
+                  setToolsLoading('verify');
+                  try {
+                    const r = await api.verifyBacklinks(projectId);
+                    setToolsResult(`Verification complete: ${r.verified} verified, ${r.dead} dead, ${r.pending} pending, ${r.errors} errors`);
+                    loadBacklinks();
+                  } catch (e) { setToolsResult(`Error: ${e}`); }
+                  setToolsLoading(null);
+                }}
+                disabled={toolsLoading === 'verify'}
+                style={{ padding: '8px 16px', borderRadius: 6, background: '#4caf50', color: 'white', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+              >
+                {toolsLoading === 'verify' ? 'Verifying...' : 'Verify Backlinks'}
+              </button>
+            </div>
+
+            {/* 5. Health Monitor */}
+            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>5. Health Monitor</h3>
+              <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
+                Check all backlinks for dead links (404, removed). Auto-creates alerts for dead links found.
+              </p>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <button
+                  onClick={async () => {
+                    setToolsLoading('health');
+                    try {
+                      const r = await api.runHealthCheck(projectId);
+                      setToolsResult(`Health check: ${r.checked} checked, ${r.healthy} healthy, ${r.dead} dead, ${r.degraded} degraded`);
+                    } catch (e) { setToolsResult(`Error: ${e}`); }
+                    setToolsLoading(null);
+                  }}
+                  disabled={toolsLoading === 'health'}
+                  style={{ padding: '8px 16px', borderRadius: 6, background: '#ff9800', color: 'white', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                >
+                  {toolsLoading === 'health' ? 'Checking...' : 'Run Health Check'}
+                </button>
+                <button
+                  onClick={async () => {
+                    const data = await api.getHealthSummary(projectId);
+                    setHealthSummary(data);
+                  }}
+                  style={{ padding: '8px 16px', borderRadius: 6, background: 'var(--border)', color: 'var(--foreground)', border: 'none', cursor: 'pointer', fontSize: 13 }}
+                >
+                  View Summary
+                </button>
+              </div>
+              {healthSummary && (
+                <div style={{ fontSize: 12, padding: 10, background: 'var(--background)', borderRadius: 6 }}>
+                  <div>Total: {healthSummary.total} | Verified: <span style={{ color: '#4caf50' }}>{healthSummary.verified}</span> | Dead: <span style={{ color: '#f44336' }}>{healthSummary.dead}</span> | Submitted: {healthSummary.submitted} | Pending: {healthSummary.pending}</div>
+                  {healthSummary.recentChecks.length > 0 && (
+                    <div style={{ marginTop: 6 }}>
+                      <strong>Recent checks:</strong>
+                      {healthSummary.recentChecks.slice(0, 3).map((c, i) => (
+                        <div key={i}>{new Date(c.date).toLocaleDateString()}: {c.healthy} healthy, {c.dead} dead</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 2. DA Scoring */}
+            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>2. Domain Authority Scoring</h3>
+              <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
+                Score all 192K+ endpoints by estimated Domain Authority. Prioritize high-DA backlinks.
+              </p>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <button
+                  onClick={async () => {
+                    setToolsLoading('da');
+                    try {
+                      await api.scoreEndpointDA();
+                      setToolsResult('DA scoring started in background for all endpoints');
+                    } catch (e) { setToolsResult(`Error: ${e}`); }
+                    setToolsLoading(null);
+                  }}
+                  disabled={toolsLoading === 'da'}
+                  style={{ padding: '8px 16px', borderRadius: 6, background: '#2196f3', color: 'white', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                >
+                  {toolsLoading === 'da' ? 'Scoring...' : 'Score All Endpoints'}
+                </button>
+                <button
+                  onClick={async () => {
+                    const data = await api.getDADistribution();
+                    setDADistribution(data.distribution);
+                  }}
+                  style={{ padding: '8px 16px', borderRadius: 6, background: 'var(--border)', color: 'var(--foreground)', border: 'none', cursor: 'pointer', fontSize: 13 }}
+                >
+                  View Distribution
+                </button>
+              </div>
+              {daDistribution.length > 0 && (
+                <div style={{ fontSize: 12, padding: 10, background: 'var(--background)', borderRadius: 6 }}>
+                  {daDistribution.map((d, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span>{d.range}</span>
+                      <strong>{d.count.toLocaleString()}</strong>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Row 2: Competitor Analysis + Anchor Text + Geo-Targeting */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+            {/* 4. Competitor Analysis */}
+            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>4. Competitor Backlink Analysis</h3>
+              <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
+                Enter a competitor domain to discover where they have backlinks, then submit to the same endpoints.
+              </p>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <input
+                  type="text"
+                  value={competitorDomain}
+                  onChange={(e) => setCompetitorDomain(e.target.value)}
+                  placeholder="competitor.com"
+                  style={{ flex: 1, padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 13 }}
+                />
+                <button
+                  onClick={async () => {
+                    if (!competitorDomain) return;
+                    setToolsLoading('competitor');
+                    try {
+                      const r = await api.analyzeCompetitor(projectId, competitorDomain);
+                      setCompetitorResult(r);
+                      setToolsResult(`Found ${r.backlinksFound} backlink sources for ${r.domain}`);
+                    } catch (e) { setToolsResult(`Error: ${e}`); }
+                    setToolsLoading(null);
+                  }}
+                  disabled={toolsLoading === 'competitor' || !competitorDomain}
+                  style={{ padding: '8px 16px', borderRadius: 6, background: '#9c27b0', color: 'white', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                >
+                  {toolsLoading === 'competitor' ? 'Analyzing...' : 'Analyze'}
+                </button>
+              </div>
+              {competitorResult && (
+                <div style={{ fontSize: 12, padding: 10, background: 'var(--background)', borderRadius: 6, maxHeight: 200, overflow: 'auto' }}>
+                  <div style={{ marginBottom: 6 }}><strong>{competitorResult.domain}</strong>: {competitorResult.backlinksFound} sources found</div>
+                  {competitorResult.sources.map((s, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, gap: 8 }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{s.url}</span>
+                      <span style={{ color: s.da >= 70 ? '#4caf50' : s.da >= 40 ? '#ff9800' : '#f44336' }}>DA {s.da}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 3. Anchor Text Optimization */}
+            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>3. Anchor Text Optimization</h3>
+              <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
+                AI-generated keyword-rich anchor text variations. Different anchors per endpoint to look natural.
+              </p>
+              <button
+                onClick={async () => {
+                  setToolsLoading('anchor');
+                  try {
+                    const r = await api.generateAnchorTexts(projectId, {
+                      domain: project?.domain || '',
+                      companyName: project?.domain?.replace(/\.(com|net|org|io)$/, '') || '',
+                      description: project?.sitemap_url || '',
+                      keywords: ['SEO', 'backlinks', 'indexing', 'website'],
+                    });
+                    setAnchorTexts(r.anchors);
+                    setToolsResult(`Generated ${r.anchors.length} anchor text variations`);
+                  } catch (e) { setToolsResult(`Error: ${e}`); }
+                  setToolsLoading(null);
+                }}
+                disabled={toolsLoading === 'anchor'}
+                style={{ padding: '8px 16px', borderRadius: 6, background: '#e91e63', color: 'white', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, marginBottom: 12 }}
+              >
+                {toolsLoading === 'anchor' ? 'Generating...' : 'Generate Anchor Texts'}
+              </button>
+              {anchorTexts.length > 0 && (
+                <div style={{ fontSize: 12, padding: 10, background: 'var(--background)', borderRadius: 6, maxHeight: 200, overflow: 'auto' }}>
+                  {anchorTexts.map((a, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, gap: 8 }}>
+                      <span style={{ fontFamily: 'monospace' }}>{a.text}</span>
+                      <span style={{ color: 'var(--muted-foreground)', whiteSpace: 'nowrap', fontSize: 11 }}>{a.type}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 6. Geo-Targeted */}
+            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>6. Geo-Targeted Backlinks</h3>
+              <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
+                Filter endpoints by country/region. Prioritize endpoints matching your target audience.
+              </p>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <select
+                  value={geoRegion}
+                  onChange={(e) => setGeoRegion(e.target.value)}
+                  style={{ flex: 1, padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 13 }}
+                >
+                  {regions.length === 0 && <option value="GLOBAL">Global</option>}
+                  {regions.map((r) => (
+                    <option key={r.code} value={r.code}>{r.name} ({r.tlds.join(', ')})</option>
+                  ))}
+                </select>
+                <button
+                  onClick={async () => {
+                    setToolsLoading('geo');
+                    try {
+                      if (regions.length === 0) {
+                        const regData = await api.getAvailableRegions();
+                        setRegions(regData.regions);
+                      }
+                      const r = await api.getGeoEndpoints(geoRegion);
+                      setGeoEndpoints(r);
+                      setToolsResult(`Found ${r.total.toLocaleString()} endpoints for ${geoRegion}`);
+                    } catch (e) { setToolsResult(`Error: ${e}`); }
+                    setToolsLoading(null);
+                  }}
+                  disabled={toolsLoading === 'geo'}
+                  style={{ padding: '8px 16px', borderRadius: 6, background: '#009688', color: 'white', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                >
+                  {toolsLoading === 'geo' ? 'Loading...' : 'Search'}
+                </button>
+              </div>
+              {geoEndpoints && (
+                <div style={{ fontSize: 12, padding: 10, background: 'var(--background)', borderRadius: 6 }}>
+                  <div style={{ marginBottom: 6 }}><strong>{geoEndpoints.total.toLocaleString()}</strong> endpoints in region</div>
+                  {geoEndpoints.endpoints.slice(0, 10).map((ep, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, gap: 8 }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{ep.name}</span>
+                      <span style={{ whiteSpace: 'nowrap' }}>DA {ep.domain_authority || '?'}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Row 3: Tier 2 + Smart Schedule + Export + Disavow */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+            {/* 7. Tiered Link Building */}
+            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>7. Tiered Link Building</h3>
+              <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
+                Build Tier 2 backlinks TO your existing backlinks. Submits your WHOIS/BuiltWith pages to social bookmarks.
+              </p>
+              <button
+                onClick={async () => {
+                  setToolsLoading('tier2');
+                  try {
+                    const blData = await api.getBacklinks(projectId, 1, 20, 'submitted');
+                    const ids = blData.backlinks.map((b: BacklinkResult) => b.id);
+                    if (ids.length === 0) {
+                      setToolsResult('No submitted backlinks to build Tier 2 from. Build backlinks first.');
+                      setToolsLoading(null);
+                      return;
+                    }
+                    const r = await api.buildTier2Links(projectId, ids);
+                    setToolsResult(`Tier 2 built: ${r.totalSubmitted} submissions across ${r.results.length} Tier 1 backlinks`);
+                  } catch (e) { setToolsResult(`Error: ${e}`); }
+                  setToolsLoading(null);
+                }}
+                disabled={toolsLoading === 'tier2'}
+                style={{ padding: '8px 16px', borderRadius: 6, background: '#795548', color: 'white', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+              >
+                {toolsLoading === 'tier2' ? 'Building Tier 2...' : 'Build Tier 2 Links'}
+              </button>
+            </div>
+
+            {/* 9. Smart Scheduling */}
+            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>9. Smart Scheduling</h3>
+              <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
+                AI-optimized submission timing. Ramps up gradually, rotates categories, varies time slots.
+              </p>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <select
+                  value={domainAge}
+                  onChange={(e) => setDomainAge(e.target.value)}
+                  style={{ flex: 1, padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 13 }}
+                >
+                  <option value="new">New Domain (conservative)</option>
+                  <option value="established">Established Domain (moderate)</option>
+                  <option value="old">Old Domain (aggressive)</option>
+                </select>
+                <button
+                  onClick={async () => {
+                    setToolsLoading('schedule');
+                    try {
+                      const r = await api.getSmartSchedule(projectId, domainAge);
+                      setSmartSchedule(r);
+                      setToolsResult(`Schedule: ${r.dailyLimit}/day, ${r.durationDays} days. ${r.reasoning}`);
+                    } catch (e) { setToolsResult(`Error: ${e}`); }
+                    setToolsLoading(null);
+                  }}
+                  disabled={toolsLoading === 'schedule'}
+                  style={{ padding: '8px 16px', borderRadius: 6, background: '#607d8b', color: 'white', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                >
+                  {toolsLoading === 'schedule' ? 'Planning...' : 'Generate Plan'}
+                </button>
+              </div>
+              {smartSchedule && (
+                <div style={{ fontSize: 12, padding: 10, background: 'var(--background)', borderRadius: 6, maxHeight: 200, overflow: 'auto' }}>
+                  <div style={{ marginBottom: 6 }}><strong>{smartSchedule.dailyLimit}/day</strong> over <strong>{smartSchedule.durationDays} days</strong></div>
+                  <div style={{ marginBottom: 6, color: 'var(--muted-foreground)' }}>{smartSchedule.reasoning}</div>
+                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 6 }}>
+                    {smartSchedule.schedule.slice(0, 7).map((s, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                        <span>Day {s.day}: {s.count} submissions</span>
+                        <span style={{ color: 'var(--muted-foreground)' }}>{s.categories[0]}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 8. Export Report */}
+            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>8. Backlink Report Export</h3>
+              <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
+                Download a full backlink report as CSV or JSON. Includes status, DA scores, and categories.
+              </p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={async () => {
+                    const url = await api.getExportUrl(projectId, 'csv');
+                    const token = localStorage.getItem('token');
+                    window.open(`${url}&token=${token}`, '_blank');
+                  }}
+                  style={{ padding: '8px 16px', borderRadius: 6, background: '#3f51b5', color: 'white', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                >
+                  Export CSV
+                </button>
+                <button
+                  onClick={async () => {
+                    const url = await api.getExportUrl(projectId, 'json');
+                    const token = localStorage.getItem('token');
+                    window.open(`${url}&token=${token}`, '_blank');
+                  }}
+                  style={{ padding: '8px 16px', borderRadius: 6, background: 'var(--border)', color: 'var(--foreground)', border: 'none', cursor: 'pointer', fontSize: 13 }}
+                >
+                  Export JSON
+                </button>
+              </div>
+            </div>
+
+            {/* 10. Disavow Generator */}
+            <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>10. Disavow List Generator</h3>
+              <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
+                Auto-generate a Google disavow file for toxic/dead backlinks. Upload to Google Search Console.
+              </p>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <button
+                  onClick={async () => {
+                    setToolsLoading('disavow');
+                    try {
+                      const r = await api.getDisavowList(projectId);
+                      setDisavowData(r);
+                      setToolsResult(`Disavow list: ${r.totalDisavowed} domains flagged as toxic`);
+                    } catch (e) { setToolsResult(`Error: ${e}`); }
+                    setToolsLoading(null);
+                  }}
+                  disabled={toolsLoading === 'disavow'}
+                  style={{ padding: '8px 16px', borderRadius: 6, background: '#f44336', color: 'white', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                >
+                  {toolsLoading === 'disavow' ? 'Generating...' : 'Generate Disavow List'}
+                </button>
+                {disavowData && (
+                  <button
+                    onClick={() => {
+                      const blob = new Blob([disavowData.disavowContent], { type: 'text/plain' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = disavowData.filename;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    style={{ padding: '8px 16px', borderRadius: 6, background: 'var(--border)', color: 'var(--foreground)', border: 'none', cursor: 'pointer', fontSize: 13 }}
+                  >
+                    Download .txt
+                  </button>
+                )}
+              </div>
+              {disavowData && (
+                <div style={{ fontSize: 12, padding: 10, background: 'var(--background)', borderRadius: 6, maxHeight: 200, overflow: 'auto' }}>
+                  <div style={{ marginBottom: 6 }}><strong>{disavowData.totalDisavowed}</strong> domains to disavow</div>
+                  {disavowData.reasons.slice(0, 10).map((r, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2, gap: 8 }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{r.domain}</span>
+                      <span style={{ color: '#f44336', whiteSpace: 'nowrap', fontSize: 11 }}>{r.reason}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
