@@ -1,24 +1,75 @@
 import { pool } from '../db/pool';
 import { getAllEndpoints } from './endpointDatabase';
+import { generateMassEndpoints } from './massEndpointGenerator';
 
 export async function seedBacklinkEndpoints(): Promise<number> {
-  const endpoints = getAllEndpoints();
+  // Generate mass endpoints programmatically (245K+)
+  let endpoints: Array<{ name: string; url_template: string; category: string }>;
+  try {
+    endpoints = generateMassEndpoints();
+    console.log(`[Seed] Generated ${endpoints.length.toLocaleString()} endpoints from mass generator`);
+  } catch (err) {
+    console.error('[Seed] Mass generator failed, falling back to hardcoded:', err);
+    endpoints = getAllEndpoints();
+  }
 
+  // Check current count
+  const currentCount = await pool.query('SELECT COUNT(*) as count FROM backlink_endpoints');
+  const existing = parseInt(currentCount.rows[0].count);
+  console.log(`[Seed] Current endpoint count: ${existing.toLocaleString()}`);
+
+  // Batch insert for performance (1000 at a time)
   let seeded = 0;
-  for (const ep of endpoints) {
+  const batchSize = 1000;
+
+  for (let i = 0; i < endpoints.length; i += batchSize) {
+    const batch = endpoints.slice(i, i + batchSize);
+
+    // Build multi-row INSERT
+    const values: string[] = [];
+    const params: string[] = [];
+    let paramIndex = 1;
+
+    for (const ep of batch) {
+      values.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, true)`);
+      params.push(ep.name, ep.url_template, ep.category);
+      paramIndex += 3;
+    }
+
     try {
       const result = await pool.query(
         `INSERT INTO backlink_endpoints (name, url_template, category, active)
-         VALUES ($1, $2, $3, true)
-         ON CONFLICT DO NOTHING
-         RETURNING id`,
-        [ep.name, ep.url_template, ep.category]
+         VALUES ${values.join(', ')}
+         ON CONFLICT (url_template) DO NOTHING`,
+        params
       );
-      if (result.rowCount && result.rowCount > 0) seeded++;
-    } catch {
-      // skip duplicates
+      seeded += result.rowCount || 0;
+    } catch (err) {
+      // If batch fails, try individual inserts for this batch
+      for (const ep of batch) {
+        try {
+          const result = await pool.query(
+            `INSERT INTO backlink_endpoints (name, url_template, category, active)
+             VALUES ($1, $2, $3, true)
+             ON CONFLICT (url_template) DO NOTHING
+             RETURNING id`,
+            [ep.name, ep.url_template, ep.category]
+          );
+          if (result.rowCount && result.rowCount > 0) seeded++;
+        } catch {
+          // skip
+        }
+      }
+    }
+
+    // Log progress every 50K
+    if ((i + batchSize) % 50000 < batchSize) {
+      console.log(`[Seed] Progress: ${Math.min(i + batchSize, endpoints.length).toLocaleString()}/${endpoints.length.toLocaleString()} processed, ${seeded.toLocaleString()} new`);
     }
   }
+
+  const finalCount = await pool.query('SELECT COUNT(*) as count FROM backlink_endpoints');
+  console.log(`[Seed] Done. ${seeded.toLocaleString()} new endpoints added. Total: ${parseInt(finalCount.rows[0].count).toLocaleString()}`);
 
   return seeded;
 }

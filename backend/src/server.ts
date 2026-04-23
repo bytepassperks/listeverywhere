@@ -177,9 +177,32 @@ async function start() {
 
     // Start 6-hour background workers for endpoint discovery + auto-submit
     startBackgroundWorkers();
+
+    // Auto-seed backlink endpoints in background if count is low
+    autoSeedEndpoints();
   } catch (err) {
     app.log.error(err);
     process.exit(1);
+  }
+}
+
+async function autoSeedEndpoints() {
+  try {
+    const { pool } = await import('./db/pool');
+    const result = await pool.query('SELECT COUNT(*) as count FROM backlink_endpoints');
+    const count = parseInt(result.rows[0].count);
+    console.log(`[AutoSeed] Current endpoint count: ${count.toLocaleString()}`);
+
+    if (count < 100000) {
+      console.log('[AutoSeed] Endpoint count below 100K — starting mass seed in background...');
+      const { seedBacklinkEndpoints } = await import('./services/backlinkBuilder');
+      const seeded = await seedBacklinkEndpoints();
+      console.log(`[AutoSeed] Mass seed complete: ${seeded.toLocaleString()} new endpoints added`);
+    } else {
+      console.log('[AutoSeed] Endpoint count already above 100K — skipping mass seed');
+    }
+  } catch (err) {
+    console.error('[AutoSeed] Error:', err);
   }
 }
 

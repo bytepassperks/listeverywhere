@@ -390,8 +390,13 @@ export async function indexerRoutes(app: FastifyInstance) {
       return reply.status(403).send({ error: 'Super admin only' });
     }
 
-    const seeded = await seedBacklinkEndpoints();
-    return { message: `Seeded ${seeded} backlink endpoints` };
+    // Run in background — don't block HTTP request for 245K+ inserts
+    seedBacklinkEndpoints().then(seeded => {
+      console.log(`[Seed API] Mass seed complete: ${seeded.toLocaleString()} new endpoints`);
+    }).catch(err => {
+      console.error('[Seed API] Error:', err);
+    });
+    return { message: 'Mass endpoint seeding started in background (245,000+ endpoints). Check /api/indexer/endpoints/stats for progress.' };
   });
 
   // Get backlink endpoints
