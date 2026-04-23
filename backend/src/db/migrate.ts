@@ -348,9 +348,9 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
 
--- Add parent_backlink_id for tier 2 links referencing tier 1
+-- Add parent_backlink_id for tier 2 links referencing tier 1 (no FK for performance)
 DO $$ BEGIN
-  ALTER TABLE backlink_results ADD COLUMN IF NOT EXISTS parent_backlink_id UUID REFERENCES backlink_results(id) ON DELETE SET NULL;
+  ALTER TABLE backlink_results ADD COLUMN IF NOT EXISTS parent_backlink_id UUID;
 EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
 

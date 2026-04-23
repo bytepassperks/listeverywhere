@@ -232,7 +232,7 @@ function startBackgroundWorkers() {
     }
   }, ONE_WEEK_MS);
 
-  // Run first discovery 5 minutes after startup
+  // Run first discovery 15 minutes after startup (delayed to avoid pool saturation)
   setTimeout(async () => {
     try {
       const { runFullCycle } = await import('./workers/autoSubmitWorker');
@@ -240,7 +240,7 @@ function startBackgroundWorkers() {
     } catch (err) {
       console.error('[Workers] Initial cycle error:', err);
     }
-  }, 5 * 60 * 1000);
+  }, 15 * 60 * 1000);
 }
 
 start();
