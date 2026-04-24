@@ -64,15 +64,25 @@ export async function createCampaign(
   return { campaignId: campaign.id, totalEndpoints, estimatedDays };
 }
 
-export async function processCampaignBatch(campaignId: string): Promise<{
+export async function processCampaignBatch(campaignId: string, manual = false): Promise<{
   processed: number; succeeded: number; failed: number; remaining: number; paused: boolean;
 }> {
   // Get campaign config
   const { rows: [campaign] } = await pool.query(
     'SELECT * FROM indexer_campaigns WHERE id = $1', [campaignId]
   );
-  if (!campaign || campaign.status !== 'active') {
+  if (!campaign) {
     return { processed: 0, succeeded: 0, failed: 0, remaining: 0, paused: false };
+  }
+
+  // If campaign is completed or paused (and not manual), skip
+  if (campaign.status !== 'active' && !manual) {
+    return { processed: 0, succeeded: 0, failed: 0, remaining: 0, paused: false };
+  }
+
+  // Reactivate if manual trigger on completed/paused campaign
+  if (manual && campaign.status !== 'active') {
+    await pool.query('UPDATE indexer_campaigns SET status = $1, updated_at = NOW() WHERE id = $2', ['active', campaignId]);
   }
 
   // Get project info
@@ -84,7 +94,35 @@ export async function processCampaignBatch(campaignId: string): Promise<{
   const domain = project.domain;
   const url = `https://${domain}`;
 
+  // Clean up stale queue entries (endpoints that no longer exist in backlink_endpoints)
+  await pool.query(
+    `DELETE FROM indexer_campaign_queue 
+     WHERE campaign_id = $1 AND status = 'pending'
+     AND endpoint_id NOT IN (SELECT id FROM backlink_endpoints WHERE active = true)`,
+    [campaignId]
+  );
+
+  // If queue is empty, re-queue from current active endpoints
+  const { rows: [queueCheck] } = await pool.query(
+    'SELECT COUNT(*) FROM indexer_campaign_queue WHERE campaign_id = $1 AND status = $2',
+    [campaignId, 'pending']
+  );
+  if (parseInt(queueCheck.count) === 0) {
+    // Re-queue all active endpoints that haven't been submitted yet for this campaign
+    await pool.query(
+      `INSERT INTO indexer_campaign_queue (campaign_id, endpoint_id, status)
+       SELECT $1, be.id, 'pending' FROM backlink_endpoints be
+       WHERE be.active = true
+       AND NOT EXISTS (
+         SELECT 1 FROM indexer_campaign_queue cq
+         WHERE cq.campaign_id = $1 AND cq.endpoint_id = be.id
+       )`,
+      [campaignId]
+    );
+  }
+
   // Get today's batch (respect daily limit)
+  const batchSize = manual ? 30 : 10;
   const { rows: todayCount } = await pool.query(
     `SELECT COUNT(*) FROM indexer_campaign_queue 
      WHERE campaign_id = $1 AND status != 'pending' 
@@ -93,7 +131,7 @@ export async function processCampaignBatch(campaignId: string): Promise<{
   );
   const todayProcessed = parseInt(todayCount[0].count);
   const remaining = campaign.daily_limit - todayProcessed;
-  if (remaining <= 0) {
+  if (remaining <= 0 && !manual) {
     return { processed: 0, succeeded: 0, failed: 0, remaining: 0, paused: false };
   }
 
@@ -103,17 +141,19 @@ export async function processCampaignBatch(campaignId: string): Promise<{
      FROM indexer_campaign_queue cq
      JOIN backlink_endpoints be ON be.id = cq.endpoint_id
      WHERE cq.campaign_id = $1 AND cq.status = 'pending'
-     ORDER BY RANDOM()
+     ORDER BY COALESCE(be.tier, 4) ASC, RANDOM()
      LIMIT $2`,
-    [campaignId, Math.min(remaining, 10)]
+    [campaignId, Math.min(manual ? remaining || batchSize : remaining, batchSize)]
   );
 
   let succeeded = 0;
   let failed = 0;
 
   for (const item of batch) {
-    // Random delay between requests
-    const delay = campaign.min_delay_ms + Math.random() * (campaign.max_delay_ms - campaign.min_delay_ms);
+    // Use short delays for manual triggers (1-3s), full delays for background drip-feed
+    const delay = manual
+      ? 1000 + Math.random() * 2000
+      : campaign.min_delay_ms + Math.random() * (campaign.max_delay_ms - campaign.min_delay_ms);
     await new Promise(resolve => setTimeout(resolve, delay));
 
     try {

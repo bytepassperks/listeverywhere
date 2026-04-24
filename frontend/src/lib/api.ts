@@ -316,7 +316,7 @@ class ApiClient {
   }
 
   async processCampaignBatch(campaignId: string) {
-    return this.request<{ processed: number; succeeded: number; failed: number; remaining: number; paused: boolean }>(`/api/indexer/campaigns/${campaignId}/process`, {
+    return this.request<{ processed: number; succeeded: number; failed: number; remaining: number; paused: boolean; processing?: boolean }>(`/api/indexer/campaigns/${campaignId}/process`, {
       method: 'POST',
       body: JSON.stringify({}),
     });

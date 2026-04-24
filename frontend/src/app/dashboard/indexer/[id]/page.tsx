@@ -279,7 +279,13 @@ export default function IndexerProjectPage() {
     setProcessingCampaign(campaignId);
     try {
       const result = await api.processCampaignBatch(campaignId);
-      showResult(`Batch: ${result.succeeded} submitted, ${result.failed} failed, ${result.remaining} remaining${result.paused ? ' — PAUSED (error rate too high)' : ''}`);
+      if (result.processing) {
+        showResult('Batch processing started in background. Refresh in 1-2 minutes to see results.');
+        // Auto-refresh campaigns after 30 seconds
+        setTimeout(() => loadCampaigns(), 30000);
+      } else {
+        showResult(`Batch: ${result.succeeded} submitted, ${result.failed} failed, ${result.remaining} remaining${result.paused ? ' — PAUSED (error rate too high)' : ''}`);
+      }
       await loadCampaigns();
     } catch (err) {
       showResult(`Error: ${err instanceof Error ? err.message : 'Processing failed'}`);

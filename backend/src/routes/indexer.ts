@@ -611,8 +611,9 @@ export async function indexerRoutes(app: FastifyInstance) {
   // Process campaign batch (run next batch of submissions)
   app.post('/api/indexer/campaigns/:campaignId/process', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { campaignId } = request.params as { campaignId: string };
-    const result = await processCampaignBatch(campaignId);
-    return { message: 'Batch processed', ...result };
+    // Run in background so we don't hit Render's 30s HTTP timeout
+    processCampaignBatch(campaignId, true).catch(err => console.error('[CampaignBatch] Error:', err));
+    return { message: 'Batch processing started in background', succeeded: 0, failed: 0, remaining: 0, paused: false, processing: true };
   });
 
   // Pause campaign
