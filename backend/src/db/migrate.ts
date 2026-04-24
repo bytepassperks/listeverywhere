@@ -334,6 +334,8 @@ CREATE INDEX IF NOT EXISTS idx_indexer_activity_log_project_id ON indexer_activi
 
 // Backlink enhancement columns — run separately after server starts to avoid blocking startup
 const backlinkEnhancementMigrations = [
+  `ALTER TABLE backlink_results ADD COLUMN IF NOT EXISTS endpoint_name VARCHAR(500)`,
+  `ALTER TABLE backlink_results ADD COLUMN IF NOT EXISTS endpoint_category VARCHAR(100)`,
   `ALTER TABLE backlink_endpoints ADD COLUMN IF NOT EXISTS geo_region VARCHAR(10)`,
   `ALTER TABLE backlink_results ADD COLUMN IF NOT EXISTS anchor_text TEXT`,
   `ALTER TABLE backlink_results ADD COLUMN IF NOT EXISTS tier INTEGER DEFAULT 1`,
