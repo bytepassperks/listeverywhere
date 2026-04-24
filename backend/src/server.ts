@@ -212,38 +212,29 @@ async function autoSeedEndpoints() {
   try {
     const { pool } = await import('./db/pool');
 
-    // Clean up fake mass-generated endpoints (domains that don't exist)
-    // These were created by the old mass generator using patterns like {subdomain}.{country}.{ext}
-    // Deactivate endpoints with generated name patterns (WHOI, DNS_, SEO_, etc. + country TLD)
-    const deactivated = await pool.query(
-      `UPDATE backlink_endpoints SET active = false 
-       WHERE name ~ '^[A-Z]{4} [a-z]' 
-       AND url_template ~ '\\.[a-z]{2}\\.(com|net|org|info|co|io|me|biz)/'
-       AND active = true`
-    );
-    if (deactivated.rowCount && deactivated.rowCount > 0) {
-      console.log(`[AutoSeed] Deactivated ${deactivated.rowCount.toLocaleString()} fake mass-generated endpoints`);
-    }
-
-    // Also clean up backlink_results pointing to deactivated endpoints
-    await pool.query(
-      `DELETE FROM backlink_results WHERE endpoint_id IN (
-        SELECT id FROM backlink_endpoints WHERE active = false
-      )`
-    );
-
+    // Get count of active endpoints
     const result = await pool.query('SELECT COUNT(*) as count FROM backlink_endpoints WHERE active = true');
     const count = parseInt(result.rows[0].count);
-    console.log(`[AutoSeed] Active endpoint count: ${count.toLocaleString()}`);
+    console.log(`[AutoSeed] Current active endpoint count: ${count.toLocaleString()}`);
 
-    // Seed real curated endpoints if we have very few
-    if (count < 500) {
-      console.log('[AutoSeed] Endpoint count below 500 — seeding real curated endpoints...');
+    // If we have too many endpoints (leftover from mass generation), clean them out
+    if (count > 2000) {
+      console.log('[AutoSeed] Too many endpoints detected — cleaning fake mass-generated ones...');
+      // Delete backlink_results first (FK constraint)
+      await pool.query('DELETE FROM backlink_results WHERE status = \'error\'');
+      // Truncate endpoints and re-seed with only real ones
+      await pool.query('TRUNCATE TABLE backlink_endpoints CASCADE');
+      console.log('[AutoSeed] Truncated endpoints table. Re-seeding with real curated endpoints...');
+      const { seedBacklinkEndpoints } = await import('./services/backlinkBuilder');
+      const seeded = await seedBacklinkEndpoints();
+      console.log(`[AutoSeed] Seed complete: ${seeded.toLocaleString()} real endpoints added`);
+    } else if (count < 200) {
+      console.log('[AutoSeed] Endpoint count low — seeding real curated endpoints...');
       const { seedBacklinkEndpoints } = await import('./services/backlinkBuilder');
       const seeded = await seedBacklinkEndpoints();
       console.log(`[AutoSeed] Seed complete: ${seeded.toLocaleString()} new endpoints added`);
     } else {
-      console.log('[AutoSeed] Endpoint count sufficient — skipping seed');
+      console.log('[AutoSeed] Endpoint count looks good — skipping seed');
     }
   } catch (err) {
     console.error('[AutoSeed] Error:', err);
