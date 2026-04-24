@@ -123,6 +123,13 @@ export default function IndexerProjectPage() {
     if (!loading && activeTab === 'backlinks') loadBacklinks();
   }, [loading, activeTab, loadBacklinks]);
 
+  // Load backlink stats on initial page load (needed for header Backlinks count)
+  useEffect(() => {
+    if (!loading) {
+      api.getBacklinkStats(projectId).then(setBacklinkStats).catch(() => {});
+    }
+  }, [loading, projectId]);
+
   const loadCampaigns = useCallback(async () => {
     try {
       const data = await api.getCampaigns(projectId);
@@ -1138,7 +1145,7 @@ export default function IndexerProjectPage() {
             <div style={{ padding: 20, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)', order: 2 }}>
               <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>2. Domain Authority Scoring</h3>
               <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
-                Score all 192K+ endpoints by estimated Domain Authority. Prioritize high-DA backlinks.
+                Score all endpoints by estimated Domain Authority. Prioritize high-DA backlinks.
               </p>
               <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
                 <button
