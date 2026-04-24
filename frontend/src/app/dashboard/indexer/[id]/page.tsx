@@ -1198,12 +1198,20 @@ export default function IndexerProjectPage() {
                 </button>
                 <button
                   onClick={async () => {
-                    const data = await api.getDADistribution();
-                    setDADistribution(data.distribution);
+                    setToolsLoading('daView');
+                    try {
+                      const data = await api.getDADistribution();
+                      setDADistribution(data.distribution || []);
+                      if (!data.distribution || data.distribution.length === 0) {
+                        setToolsResult('No DA scores found. Click "Score All Endpoints" first to generate scores.');
+                      }
+                    } catch (e) { setToolsResult(`Error loading distribution: ${e}`); }
+                    setToolsLoading(null);
                   }}
+                  disabled={toolsLoading === 'daView'}
                   style={{ padding: '8px 16px', borderRadius: 6, background: 'var(--border)', color: 'var(--foreground)', border: 'none', cursor: 'pointer', fontSize: 13 }}
                 >
-                  View Distribution
+                  {toolsLoading === 'daView' ? 'Loading...' : 'View Distribution'}
                 </button>
               </div>
               {daDistribution.length > 0 && (

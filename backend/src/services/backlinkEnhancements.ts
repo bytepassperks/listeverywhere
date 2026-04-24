@@ -127,46 +127,38 @@ export async function scoreEndpointDA(batchSize = 1000): Promise<{ scored: numbe
 
   if (result.rows.length === 0) return { scored: 0 };
 
-  const updates: Array<{ id: string; da: number }> = [];
+  let scored = 0;
   for (const row of result.rows) {
-    updates.push({ id: row.id, da: estimateDA(row.url_template) });
-  }
-
-  for (let i = 0; i < updates.length; i += 500) {
-    const batch = updates.slice(i, i + 500);
-    const cases = batch.map((u, idx) => `WHEN id = $${idx * 2 + 1}::uuid THEN $${idx * 2 + 2}::integer`).join(' ');
-    const ids = batch.map((u, idx) => `$${idx * 2 + 1}::uuid`).join(', ');
-    const params: (string | number)[] = [];
-    for (const u of batch) {
-      params.push(u.id, u.da);
-    }
-
+    const da = estimateDA(row.url_template);
     await pool.query(
-      `UPDATE backlink_endpoints SET domain_authority = CASE ${cases} END WHERE id IN (${ids})`,
-      params
+      `UPDATE backlink_endpoints SET domain_authority = $1 WHERE id = $2`,
+      [da, row.id]
     );
+    scored++;
   }
 
-  return { scored: updates.length };
+  return { scored };
 }
 
 export async function getDADistribution(): Promise<Array<{ range: string; count: number }>> {
   const result = await pool.query(`
-    SELECT
-      CASE
-        WHEN domain_authority >= 80 THEN '80-100 (High)'
-        WHEN domain_authority >= 60 THEN '60-79 (Medium-High)'
-        WHEN domain_authority >= 40 THEN '40-59 (Medium)'
-        WHEN domain_authority >= 20 THEN '20-39 (Low-Medium)'
-        ELSE '0-19 (Low)'
-      END as range,
-      COUNT(*) as count
-    FROM backlink_endpoints
-    WHERE active = true AND domain_authority IS NOT NULL
-    GROUP BY range
-    ORDER BY range DESC
+    SELECT da_range, count FROM (
+      SELECT
+        CASE
+          WHEN domain_authority >= 80 THEN '80-100 (High)'
+          WHEN domain_authority >= 60 THEN '60-79 (Medium-High)'
+          WHEN domain_authority >= 40 THEN '40-59 (Medium)'
+          WHEN domain_authority >= 20 THEN '20-39 (Low-Medium)'
+          ELSE '0-19 (Low)'
+        END as da_range,
+        COUNT(*) as count
+      FROM backlink_endpoints
+      WHERE active = true AND domain_authority IS NOT NULL
+      GROUP BY da_range
+    ) sub
+    ORDER BY da_range DESC
   `);
-  return result.rows.map((r: { range: string; count: string }) => ({ range: r.range, count: parseInt(r.count) }));
+  return result.rows.map((r: { da_range: string; count: string }) => ({ range: r.da_range, count: parseInt(r.count) }));
 }
 
 // ============================================
