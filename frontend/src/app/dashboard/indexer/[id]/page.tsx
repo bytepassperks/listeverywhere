@@ -1583,7 +1583,7 @@ export default function IndexerProjectPage() {
                     setToolsLoading('blIndexCheck');
                     setBacklinkIndexResults([]);
                     try {
-                      const r = await api.checkBacklinkIndexStatus(projectId, 20);
+                      const r = await api.checkBacklinkIndexStatus(projectId, 5);
                       setBacklinkIndexResults(r.results);
                       setToolsResult(`Backlink index check: ${r.checked} checked — ${r.indexed} indexed, ${r.notIndexed} not indexed, ${r.unknown} unknown`);
                       // Refresh stats
@@ -1595,7 +1595,7 @@ export default function IndexerProjectPage() {
                   disabled={toolsLoading === 'blIndexCheck'}
                   style={{ padding: '8px 16px', borderRadius: 6, background: '#00bcd4', color: 'white', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
                 >
-                  {toolsLoading === 'blIndexCheck' ? 'Checking (1 URL/sec)...' : 'Check Backlink Indexation'}
+                  {toolsLoading === 'blIndexCheck' ? 'Checking 5 URLs...' : 'Check Backlink Indexation'}
                 </button>
               </div>
               {backlinkIndexResults.length > 0 && (
