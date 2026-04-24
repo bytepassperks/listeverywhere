@@ -81,39 +81,42 @@ export async function buildBacklinks(
   categories?: string[],
   maxEndpoints: number = 50
 ): Promise<{ submitted: number; errors: string[]; totalAvailable: number }> {
-  // Select endpoints not yet tried for this project, excluding globally-failed ones
-  // A "globally failed" endpoint has ONLY error results across all projects
-  let query = `SELECT be.id, be.name, be.url_template, be.category 
-    FROM backlink_endpoints be 
-    LEFT JOIN backlink_results br ON br.endpoint_id = be.id AND br.project_id = $1
-    WHERE be.active = true AND br.id IS NULL
-    AND NOT EXISTS (
-      SELECT 1 FROM backlink_results br2 
-      WHERE br2.endpoint_id = be.id AND br2.status = 'error'
-      HAVING COUNT(*) > 2 AND COUNT(*) FILTER (WHERE br2.status != 'error') = 0
-    )`;
-  const params: (string | string[] | number)[] = [projectId];
-
-  if (categories && categories.length > 0) {
-    params.push(categories);
-    query += ` AND be.category = ANY($${params.length})`;
-  }
-
-  // Count total available (simple count of not-yet-tried)
-  const countResult = await pool.query(
-    `SELECT COUNT(*) as count FROM backlink_endpoints be 
-     LEFT JOIN backlink_results br ON br.endpoint_id = be.id AND br.project_id = $1
-     WHERE be.active = true AND br.id IS NULL`,
+  // Fast query: pick endpoints with DA scores (real/verified) not yet tried for this project
+  // Uses a subquery on IDs to avoid slow LEFT JOIN on 192K rows
+  const alreadyTriedResult = await pool.query(
+    'SELECT DISTINCT endpoint_id FROM backlink_results WHERE project_id = $1',
     [projectId]
   );
-  const totalAvailable = parseInt(countResult.rows[0].count);
+  const alreadyTriedIds = alreadyTriedResult.rows.map((r: { endpoint_id: string }) => r.endpoint_id);
 
-  // Prioritize: 1) endpoints with known DA scores (real/verified sites), 2) rest by name
+  let query: string;
+  const params: (string | string[] | number)[] = [];
+
+  if (alreadyTriedIds.length > 0) {
+    params.push(alreadyTriedIds);
+    query = `SELECT id, name, url_template, category FROM backlink_endpoints 
+      WHERE active = true AND domain_authority IS NOT NULL AND id != ALL($1)`;
+    if (categories && categories.length > 0) {
+      params.push(categories);
+      query += ` AND category = ANY($${params.length})`;
+    }
+  } else {
+    query = `SELECT id, name, url_template, category FROM backlink_endpoints 
+      WHERE active = true AND domain_authority IS NOT NULL`;
+    if (categories && categories.length > 0) {
+      params.push(categories);
+      query += ` AND category = ANY($${params.length})`;
+    }
+  }
+
   params.push(maxEndpoints);
-  query += ` ORDER BY CASE WHEN be.domain_authority IS NOT NULL THEN 0 ELSE 1 END, COALESCE(be.domain_authority, 0) DESC LIMIT $${params.length}`;
+  query += ` ORDER BY domain_authority DESC LIMIT $${params.length}`;
 
   const result = await pool.query(query, params);
   const endpoints = result.rows;
+
+  const totalCountResult = await pool.query('SELECT COUNT(*) FROM backlink_endpoints WHERE active = true AND domain_authority IS NOT NULL');
+  const totalAvailable = parseInt(totalCountResult.rows[0].count) - alreadyTriedIds.length;
 
   let submitted = 0;
   const errors: string[] = [];

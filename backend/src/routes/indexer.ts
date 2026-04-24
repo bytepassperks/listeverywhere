@@ -447,7 +447,8 @@ export async function indexerRoutes(app: FastifyInstance) {
     const domain = project.rows[0].domain;
     const targetUrl = `https://${domain}`;
 
-    const result = await buildBacklinks(id, targetUrl, domain, categories, 50);
+    // Run synchronously but with a small batch to avoid timeout
+    const result = await buildBacklinks(id, targetUrl, domain, categories, 30);
     return { message: `Backlink building complete: ${result.submitted} submitted`, ...result };
   });
 
