@@ -72,6 +72,17 @@ export async function buildBacklinks(
   categories?: string[],
   maxEndpoints: number = 50
 ): Promise<{ submitted: number; errors: string[]; totalAvailable: number }> {
+  // Auto-disable endpoints that have failed 3+ times across all projects
+  await pool.query(
+    `UPDATE backlink_endpoints SET active = false
+     WHERE id IN (
+       SELECT endpoint_id FROM backlink_results
+       WHERE status = 'error' AND http_status IN (403, 404, 500, 521, 0)
+       GROUP BY endpoint_id
+       HAVING COUNT(*) >= 3
+     ) AND active = true`
+  );
+
   // Get already-tried endpoint IDs for this project
   const alreadyTriedResult = await pool.query(
     'SELECT DISTINCT endpoint_id FROM backlink_results WHERE project_id = $1',
@@ -79,11 +90,19 @@ export async function buildBacklinks(
   );
   const alreadyTriedIds = alreadyTriedResult.rows.map((r: { endpoint_id: string }) => r.endpoint_id);
 
+  // Also exclude endpoints that failed for ANY project (403/404/500/521/0 are permanent failures)
+  const globalFailedResult = await pool.query(
+    `SELECT DISTINCT endpoint_id FROM backlink_results
+     WHERE status = 'error' AND http_status IN (403, 404, 500, 521, 0)`
+  );
+  const globalFailedIds = globalFailedResult.rows.map((r: { endpoint_id: string }) => r.endpoint_id);
+  const excludeIds = [...new Set([...alreadyTriedIds, ...globalFailedIds])];
+
   let query: string;
   const params: (string | string[] | number)[] = [];
 
-  if (alreadyTriedIds.length > 0) {
-    params.push(alreadyTriedIds);
+  if (excludeIds.length > 0) {
+    params.push(excludeIds);
     query = `SELECT id, name, url_template, category FROM backlink_endpoints 
       WHERE active = true AND id != ALL($1)`;
     if (categories && categories.length > 0) {
@@ -174,14 +193,16 @@ export async function getBacklinkStats(projectId: string): Promise<{
   submitted: number;
   verified: number;
   dead: number;
+  errors: number;
   byCategory: Record<string, number>;
 }> {
   const statsResult = await pool.query(
     `SELECT
-       COUNT(*) as total,
+       COUNT(*) FILTER (WHERE status != 'error') as total,
        COUNT(*) FILTER (WHERE status = 'submitted') as submitted,
        COUNT(*) FILTER (WHERE status = 'verified') as verified,
-       COUNT(*) FILTER (WHERE status = 'dead') as dead
+       COUNT(*) FILTER (WHERE status = 'dead') as dead,
+       COUNT(*) FILTER (WHERE status = 'error') as errors
      FROM backlink_results
      WHERE project_id = $1`,
     [projectId]
@@ -206,6 +227,7 @@ export async function getBacklinkStats(projectId: string): Promise<{
     submitted: parseInt(stats.submitted),
     verified: parseInt(stats.verified),
     dead: parseInt(stats.dead),
+    errors: parseInt(stats.errors),
     byCategory,
   };
 }

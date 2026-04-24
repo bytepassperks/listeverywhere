@@ -60,38 +60,67 @@ export async function pingUrls(urls: string[]): Promise<{ pinged: number; errors
 }
 
 export async function checkIndexStatus(url: string): Promise<'indexed' | 'not_indexed' | 'unknown'> {
-  try {
-    // Use site: operator to check if URL is indexed
-    const query = `site:${url}`;
-    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&num=1`;
+  // Multi-method index check: try Google cache, Bing cache, and Wayback Machine
+  const cleanUrl = url.replace(/\/$/, '');
+  let signals = 0;
+  let checks = 0;
 
-    const response = await fetch(searchUrl, {
+  // Method 1: Check Google's webcache
+  try {
+    const cacheUrl = `https://webcache.googleusercontent.com/search?q=cache:${encodeURIComponent(cleanUrl)}`;
+    const response = await fetch(cacheUrl, {
+      method: 'HEAD',
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml',
-        'Accept-Language': 'en-US,en;q=0.9',
       },
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(8000),
+      redirect: 'manual',
     });
-
-    if (!response.ok) return 'unknown';
-
-    const html = await response.text();
-
-    // If Google returns "did not match any documents" or similar, it's not indexed
-    if (html.includes('did not match any documents') || html.includes('did not return any results')) {
-      return 'not_indexed';
+    checks++;
+    if (response.status === 200 || response.status === 301 || response.status === 302) {
+      signals++;
     }
+  } catch { /* ignore */ }
 
-    // If the URL appears in results, it's indexed
-    if (html.includes(url) || html.includes(url.replace('https://', '').replace('http://', ''))) {
-      return 'indexed';
+  // Method 2: Check Wayback Machine (indicates crawlability)
+  try {
+    const waybackUrl = `https://archive.org/wayback/available?url=${encodeURIComponent(cleanUrl)}`;
+    const response = await fetch(waybackUrl, {
+      headers: { 'User-Agent': 'ListGenius-Indexer/1.0' },
+      signal: AbortSignal.timeout(8000),
+    });
+    checks++;
+    if (response.ok) {
+      const data = await response.json() as { archived_snapshots?: { closest?: { available?: boolean } } };
+      if (data?.archived_snapshots?.closest?.available) {
+        signals++;
+      }
     }
+  } catch { /* ignore */ }
 
-    return 'unknown';
-  } catch {
-    return 'unknown';
+  // Method 3: Check if the page itself is reachable (HTTP 200 = crawlable)
+  try {
+    const response = await fetch(cleanUrl, {
+      method: 'HEAD',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+      },
+      signal: AbortSignal.timeout(8000),
+      redirect: 'follow',
+    });
+    checks++;
+    if (response.ok) {
+      signals++;
+    }
+  } catch { /* ignore */ }
+
+  // If Google cache found OR (Wayback + reachable), mark as indexed
+  if (signals >= 2) {
+    return 'indexed';
+  } else if (checks >= 2 && signals === 0) {
+    return 'not_indexed';
   }
+  return 'unknown';
 }
 
 export async function batchCheckIndexStatus(

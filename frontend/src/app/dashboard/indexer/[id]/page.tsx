@@ -26,6 +26,7 @@ export default function IndexerProjectPage() {
   const [backlinks, setBacklinks] = useState<BacklinkResult[]>([]);
   const [backlinkPagination, setBacklinkPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 0 });
   const [backlinkStats, setBacklinkStats] = useState<{ total: number; submitted: number; verified: number; dead: number; byCategory: Record<string, number> } | null>(null);
+  const [backlinkFilter, setBacklinkFilter] = useState<string>('successful');
 
   // Action states
   const [syncing, setSyncing] = useState(false);
@@ -92,10 +93,12 @@ export default function IndexerProjectPage() {
     }
   }, [projectId, statusFilter, searchQuery]);
 
-  const loadBacklinks = useCallback(async (page = 1) => {
+  const loadBacklinks = useCallback(async (page = 1, statusFilter?: string) => {
     try {
+      const filter = statusFilter ?? backlinkFilter;
+      const apiStatus = filter === 'successful' ? undefined : filter === 'errors' ? 'error' : filter;
       const [blData, statsData] = await Promise.all([
-        api.getBacklinks(projectId, page),
+        api.getBacklinks(projectId, page, 50, apiStatus),
         api.getBacklinkStats(projectId),
       ]);
       setBacklinks(blData.backlinks);
@@ -104,7 +107,7 @@ export default function IndexerProjectPage() {
     } catch (err) {
       console.error('Failed to load backlinks:', err);
     }
-  }, [projectId]);
+  }, [projectId, backlinkFilter]);
 
   useEffect(() => {
     async function init() {
@@ -239,7 +242,7 @@ export default function IndexerProjectPage() {
     setBuildingBacklinks(true);
     try {
       const result = await api.buildBacklinks(projectId);
-      showResult(`Backlinks: ${result.submitted} submitted. ${result.errors.length ? `${result.errors.length} errors.` : ''}`);
+      showResult(`Backlinks: ${result.submitted} submitted. ${result.errors?.length ? `${result.errors.length} errors.` : ''}`);
       await loadBacklinks();
     } catch (err) {
       showResult(`Error: ${err instanceof Error ? err.message : 'Build failed'}`);
@@ -649,10 +652,10 @@ export default function IndexerProjectPage() {
           {backlinkStats && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 20 }}>
               {[
-                { label: 'Total', value: backlinkStats.total, color: '#6366f1' },
+                { label: 'Successful', value: backlinkStats.total, color: '#6366f1' },
                 { label: 'Submitted', value: backlinkStats.submitted, color: '#f59e0b' },
                 { label: 'Verified', value: backlinkStats.verified, color: '#22c55e' },
-                { label: 'Dead', value: backlinkStats.dead, color: '#ef4444' },
+                { label: 'Failed', value: (backlinkStats as unknown as { errors?: number }).errors || 0, color: '#ef4444' },
               ].map((s) => (
                 <div key={s.label} style={{
                   padding: 14, borderRadius: 10, background: 'var(--card)', border: '1px solid var(--border)',
@@ -663,6 +666,29 @@ export default function IndexerProjectPage() {
               ))}
             </div>
           )}
+
+          {/* Backlink Status Filter */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            {[
+              { id: 'successful', label: 'Successful' },
+              { id: 'error', label: 'Errors' },
+              { id: 'all', label: 'All' },
+            ].map((f) => (
+              <button
+                key={f.id}
+                onClick={() => { setBacklinkFilter(f.id); loadBacklinks(1, f.id); }}
+                style={{
+                  padding: '6px 16px', borderRadius: 20, fontSize: 13, fontWeight: 600,
+                  border: backlinkFilter === f.id ? '2px solid #6366f1' : '1px solid var(--border)',
+                  background: backlinkFilter === f.id ? '#6366f1' : 'var(--card)',
+                  color: backlinkFilter === f.id ? '#fff' : 'var(--foreground)',
+                  cursor: 'pointer',
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
 
           {/* Category breakdown */}
           {backlinkStats && Object.keys(backlinkStats.byCategory).length > 0 && (

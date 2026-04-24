@@ -472,9 +472,14 @@ export async function indexerRoutes(app: FastifyInstance) {
     let whereClause = 'WHERE br.project_id = $1';
     const params: (string | number)[] = [id];
 
-    if (status && status !== 'all') {
+    if (status === 'error') {
+      whereClause += ` AND br.status = 'error'`;
+    } else if (status && status !== 'all') {
       params.push(status);
       whereClause += ` AND br.status = $${params.length}`;
+    } else {
+      // Default: hide error backlinks, show only successful ones
+      whereClause += ` AND br.status != 'error'`;
     }
 
     const countResult = await pool.query(
@@ -486,7 +491,7 @@ export async function indexerRoutes(app: FastifyInstance) {
       `SELECT br.*
        FROM backlink_results br
        ${whereClause}
-       ORDER BY br.created_at DESC
+       ORDER BY CASE br.status WHEN 'verified' THEN 1 WHEN 'submitted' THEN 2 ELSE 3 END, br.created_at DESC
        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
       [...params, limitNum, offset]
     );
