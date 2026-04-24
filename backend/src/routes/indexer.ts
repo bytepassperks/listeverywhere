@@ -873,4 +873,38 @@ export async function indexerRoutes(app: FastifyInstance) {
     }
     return result;
   });
+
+  // Kill zombie DB connections blocking backlink tables (super admin only)
+  app.post('/api/indexer/admin/kill-zombies', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    if (request.userRole !== 'super_admin') {
+      return reply.status(403).send({ error: 'Super admin access required' });
+    }
+    // Find and terminate blocking queries
+    const blocking = await pool.query(`
+      SELECT pid, state, query, now() - query_start as duration
+      FROM pg_stat_activity
+      WHERE state != 'idle'
+        AND pid != pg_backend_pid()
+        AND query_start < now() - interval '30 seconds'
+      ORDER BY query_start
+    `);
+    
+    let killed = 0;
+    for (const row of blocking.rows) {
+      try {
+        await pool.query('SELECT pg_terminate_backend($1)', [row.pid]);
+        killed++;
+      } catch { /* ignore */ }
+    }
+    
+    return {
+      message: `Terminated ${killed} zombie connections`,
+      blocking: blocking.rows.map((r: { pid: number; state: string; query: string; duration: string }) => ({
+        pid: r.pid,
+        state: r.state,
+        query: r.query?.substring(0, 100),
+        duration: r.duration,
+      })),
+    };
+  });
 }
