@@ -1186,8 +1186,10 @@ export default function IndexerProjectPage() {
                   onClick={async () => {
                     setToolsLoading('da');
                     try {
-                      await api.scoreEndpointDA();
-                      setToolsResult('DA scoring started in background for all endpoints');
+                      const res = await api.scoreEndpointDA();
+                      setToolsResult(res.message || 'DA scoring complete');
+                      const dist = await api.getDADistribution();
+                      setDADistribution(dist.distribution || []);
                     } catch (e) { setToolsResult(`Error: ${e}`); }
                     setToolsLoading(null);
                   }}

@@ -864,8 +864,13 @@ export async function indexerRoutes(app: FastifyInstance) {
   // 2. Score endpoint DA
   app.post('/api/indexer/endpoints/score-da', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     if (request.userRole !== 'super_admin') return reply.status(403).send({ error: 'Super admin only' });
-    scoreEndpointDA(5000).then(r => console.log(`[DA] Scored ${r.scored} endpoints`)).catch(console.error);
-    return { message: 'DA scoring started in background' };
+    try {
+      const result = await scoreEndpointDA(5000);
+      return { message: `DA scoring complete: ${result.scored} endpoints scored` };
+    } catch (e) {
+      console.error('[DA] Scoring error:', e);
+      return { message: `DA scoring error: ${e}` };
+    }
   });
 
   // 2b. Get DA distribution

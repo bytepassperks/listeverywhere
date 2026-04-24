@@ -128,15 +128,22 @@ export async function scoreEndpointDA(batchSize = 1000): Promise<{ scored: numbe
   if (result.rows.length === 0) return { scored: 0 };
 
   let scored = 0;
+  let errors = 0;
   for (const row of result.rows) {
-    const da = estimateDA(row.url_template);
-    await pool.query(
-      `UPDATE backlink_endpoints SET domain_authority = $1 WHERE id = $2`,
-      [da, row.id]
-    );
-    scored++;
+    try {
+      const da = estimateDA(row.url_template);
+      await pool.query(
+        `UPDATE backlink_endpoints SET domain_authority = $1 WHERE id = $2`,
+        [da, row.id]
+      );
+      scored++;
+    } catch (e) {
+      errors++;
+      console.error(`[DA] Error scoring endpoint ${row.id}: ${e}`);
+    }
   }
 
+  console.log(`[DA] Scoring complete: ${scored} scored, ${errors} errors out of ${result.rows.length} total`);
   return { scored };
 }
 
