@@ -343,6 +343,10 @@ const backlinkEnhancementMigrations = [
   `CREATE INDEX IF NOT EXISTS idx_backlink_endpoints_da ON backlink_endpoints(domain_authority)`,
   `CREATE INDEX IF NOT EXISTS idx_backlink_endpoints_geo ON backlink_endpoints(geo_region)`,
   `CREATE INDEX IF NOT EXISTS idx_backlink_results_tier ON backlink_results(tier)`,
+  `CREATE INDEX IF NOT EXISTS idx_backlink_results_project ON backlink_results(project_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_backlink_results_endpoint ON backlink_results(endpoint_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_backlink_results_status ON backlink_results(status)`,
+  `CREATE INDEX IF NOT EXISTS idx_backlink_results_project_endpoint ON backlink_results(project_id, endpoint_id)`,
 ];
 
 export async function runMigrations() {

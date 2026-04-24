@@ -59,19 +59,35 @@ export async function runAutoSubmit(batchSize = 50): Promise<{
   let newEndpointsQueued = 0;
 
   for (const project of projects) {
-    // Find endpoints that haven't been submitted for this project yet
-    const { rows: newEndpoints } = await pool.query(
-      `SELECT be.id as endpoint_id, be.name as endpoint_name, be.url_template, be.category
-       FROM backlink_endpoints be
-       WHERE be.active = true
-       AND NOT EXISTS (
-         SELECT 1 FROM backlink_results br 
-         WHERE br.project_id = $1 AND br.endpoint_id = be.id
-       )
-       ORDER BY RANDOM()
-       LIMIT $2`,
-      [project.id, batchSize]
+    // Fast approach: get already-tried endpoint IDs first, then exclude them
+    const { rows: triedRows } = await pool.query(
+      'SELECT DISTINCT endpoint_id FROM backlink_results WHERE project_id = $1',
+      [project.id]
     );
+    const triedIds = triedRows.map((r: { endpoint_id: string }) => r.endpoint_id);
+
+    let newEndpoints;
+    if (triedIds.length > 0) {
+      const { rows } = await pool.query(
+        `SELECT id as endpoint_id, name as endpoint_name, url_template, category
+         FROM backlink_endpoints
+         WHERE active = true AND domain_authority IS NOT NULL AND id != ALL($1)
+         ORDER BY RANDOM()
+         LIMIT $2`,
+        [triedIds, batchSize]
+      );
+      newEndpoints = rows;
+    } else {
+      const { rows } = await pool.query(
+        `SELECT id as endpoint_id, name as endpoint_name, url_template, category
+         FROM backlink_endpoints
+         WHERE active = true AND domain_authority IS NOT NULL
+         ORDER BY RANDOM()
+         LIMIT $1`,
+        [batchSize]
+      );
+      newEndpoints = rows;
+    }
 
     if (newEndpoints.length === 0) continue;
 
