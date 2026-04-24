@@ -70,6 +70,8 @@ export default function IndexerProjectPage() {
   const [smartSchedule, setSmartSchedule] = useState<{ dailyLimit: number; durationDays: number; schedule: Array<{ day: number; count: number; categories: string[]; timeSlots: string[] }>; reasoning: string } | null>(null);
   const [domainAge, setDomainAge] = useState('established');
   const [disavowData, setDisavowData] = useState<{ disavowContent: string; filename: string; totalDisavowed: number; domains: string[]; reasons: Array<{ domain: string; reason: string }> } | null>(null);
+  const [backlinkIndexStats, setBacklinkIndexStats] = useState<{ totalBacklinks: number; indexnowSubmitted: number; indexed: number; notIndexed: number; unchecked: number } | null>(null);
+  const [backlinkIndexResults, setBacklinkIndexResults] = useState<Array<{ url: string; name: string; status: string }>>([]);
 
   const loadProject = useCallback(async () => {
     try {
@@ -1512,6 +1514,102 @@ export default function IndexerProjectPage() {
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2, gap: 8 }}>
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{r.domain}</span>
                       <span style={{ color: '#f44336', whiteSpace: 'nowrap', fontSize: 11 }}>{r.reason}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {/* 11. Backlink IndexNow Submission */}
+            <div style={{ padding: 20, borderRadius: 12, border: '2px solid #ff6f00', background: 'var(--card)', order: 11 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>11. Submit Backlinks to IndexNow</h3>
+              <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
+                Push your backlink page URLs to Bing/Yandex so search engines discover and index them faster. Backlinks only provide SEO value once Google indexes the page containing the link.
+              </p>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <button
+                  onClick={async () => {
+                    setToolsLoading('blIndexNow');
+                    try {
+                      await api.submitBacklinksToIndexNow(projectId);
+                      setToolsResult('Backlink IndexNow submission started in background. New backlink URLs are being pushed to Bing/Yandex.');
+                      // Refresh stats after a short delay
+                      setTimeout(async () => {
+                        const stats = await api.getBacklinkIndexStats(projectId);
+                        setBacklinkIndexStats(stats);
+                      }, 3000);
+                    } catch (e) { setToolsResult(`Error: ${e}`); }
+                    setToolsLoading(null);
+                  }}
+                  disabled={toolsLoading === 'blIndexNow'}
+                  style={{ padding: '8px 16px', borderRadius: 6, background: '#ff6f00', color: 'white', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                >
+                  {toolsLoading === 'blIndexNow' ? 'Submitting...' : 'Submit Backlinks to IndexNow'}
+                </button>
+                <button
+                  onClick={async () => {
+                    const stats = await api.getBacklinkIndexStats(projectId);
+                    setBacklinkIndexStats(stats);
+                  }}
+                  style={{ padding: '8px 16px', borderRadius: 6, background: 'var(--border)', color: 'var(--foreground)', border: 'none', cursor: 'pointer', fontSize: 13 }}
+                >
+                  View Stats
+                </button>
+              </div>
+              {backlinkIndexStats && (
+                <div style={{ fontSize: 12, padding: 10, background: 'var(--background)', borderRadius: 6 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+                    <div>Total Backlinks: <strong>{backlinkIndexStats.totalBacklinks}</strong></div>
+                    <div>Sent to IndexNow: <strong style={{ color: '#ff6f00' }}>{backlinkIndexStats.indexnowSubmitted}</strong></div>
+                    <div>Indexed: <strong style={{ color: '#4caf50' }}>{backlinkIndexStats.indexed}</strong></div>
+                    <div>Not Indexed: <strong style={{ color: '#f44336' }}>{backlinkIndexStats.notIndexed}</strong></div>
+                    <div>Unchecked: <strong style={{ color: '#9e9e9e' }}>{backlinkIndexStats.unchecked}</strong></div>
+                  </div>
+                  <div style={{ marginTop: 6, fontSize: 11, color: 'var(--muted-foreground)' }}>
+                    Backlinks are automatically submitted to IndexNow after every Build Backlinks and Drip-Feed batch.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 12. Backlink Index Checker */}
+            <div style={{ padding: 20, borderRadius: 12, border: '2px solid #00bcd4', background: 'var(--card)', order: 12 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>12. Check Backlink Indexation</h3>
+              <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
+                Verify if your backlink pages are actually indexed by Google. Uses Google cache, Wayback Machine, and Googlebot reachability checks.
+              </p>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <button
+                  onClick={async () => {
+                    setToolsLoading('blIndexCheck');
+                    setBacklinkIndexResults([]);
+                    try {
+                      const r = await api.checkBacklinkIndexStatus(projectId, 20);
+                      setBacklinkIndexResults(r.results);
+                      setToolsResult(`Backlink index check: ${r.checked} checked — ${r.indexed} indexed, ${r.notIndexed} not indexed, ${r.unknown} unknown`);
+                      // Refresh stats
+                      const stats = await api.getBacklinkIndexStats(projectId);
+                      setBacklinkIndexStats(stats);
+                    } catch (e) { setToolsResult(`Error: ${e}`); }
+                    setToolsLoading(null);
+                  }}
+                  disabled={toolsLoading === 'blIndexCheck'}
+                  style={{ padding: '8px 16px', borderRadius: 6, background: '#00bcd4', color: 'white', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                >
+                  {toolsLoading === 'blIndexCheck' ? 'Checking (1 URL/sec)...' : 'Check Backlink Indexation'}
+                </button>
+              </div>
+              {backlinkIndexResults.length > 0 && (
+                <div style={{ fontSize: 12, padding: 10, background: 'var(--background)', borderRadius: 6, maxHeight: 300, overflow: 'auto' }}>
+                  {backlinkIndexResults.map((r, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, gap: 8 }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, fontWeight: 600 }}>{r.name}</span>
+                      <span style={{
+                        padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600,
+                        background: r.status === 'indexed' ? '#dcfce7' : r.status === 'not_indexed' ? '#fef2f2' : '#f3f4f6',
+                        color: r.status === 'indexed' ? '#16a34a' : r.status === 'not_indexed' ? '#dc2626' : '#6b7280',
+                      }}>
+                        {r.status.replace('_', ' ')}
+                      </span>
                     </div>
                   ))}
                 </div>

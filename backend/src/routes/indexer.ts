@@ -1,7 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { pool } from '../db/pool';
 import { discoverSitemapUrl, syncSitemapToProject } from '../services/sitemapParser';
-import { generateIndexNowKey, submitUrlsViaIndexNow } from '../services/indexNowService';
+import { generateIndexNowKey, submitUrlsViaIndexNow, submitBacklinkUrlsToIndexNow, checkBacklinkIndexStatus } from '../services/indexNowService';
 import { pingSitemap, pingUrls, batchCheckIndexStatus } from '../services/pingService';
 import { buildBacklinks, getBacklinkStats, seedBacklinkEndpoints } from '../services/backlinkBuilder';
 import { analyzeMetaTags, checkGoogleIndex, analyzeRobotsTxt } from '../services/seoTools';
@@ -463,6 +463,14 @@ export async function indexerRoutes(app: FastifyInstance) {
 
     // Run synchronously but with a small batch to avoid timeout
     const result = await buildBacklinks(id, targetUrl, domain, categories, 30);
+
+    // Auto-submit new backlink URLs to IndexNow for faster indexation
+    if (result.submitted > 0) {
+      submitBacklinkUrlsToIndexNow(id, result.submitted).catch(err =>
+        console.error('[AutoBacklinkIndexNow] Error:', err)
+      );
+    }
+
     return { message: `Backlink building complete: ${result.submitted} submitted`, ...result };
   });
 
@@ -518,6 +526,69 @@ export async function indexerRoutes(app: FastifyInstance) {
         total: parseInt(countResult.rows[0].total),
         totalPages: Math.ceil(parseInt(countResult.rows[0].total) / limitNum),
       },
+    };
+  });
+
+  // ==========================================
+  // BACKLINK INDEXATION (submit backlink URLs to IndexNow + check if indexed)
+  // ==========================================
+
+  // Submit backlink URLs to IndexNow for faster indexation
+  app.post('/api/indexer/projects/:id/backlinks/submit-indexnow', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const { limit } = request.body as { limit?: number };
+
+    const project = await pool.query('SELECT domain FROM indexer_projects WHERE id = $1', [id]);
+    if (project.rows.length === 0) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    // Run in background to avoid timeout
+    submitBacklinkUrlsToIndexNow(id, limit || 500).catch(err =>
+      console.error('[BacklinkIndexNow] Error:', err)
+    );
+
+    return { message: 'Backlink IndexNow submission started in background', processing: true };
+  });
+
+  // Check if backlink URLs are indexed by Google
+  app.post('/api/indexer/projects/:id/backlinks/check-indexed', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const { limit } = request.body as { limit?: number };
+
+    const project = await pool.query('SELECT domain FROM indexer_projects WHERE id = $1', [id]);
+    if (project.rows.length === 0) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    // Run synchronously since the user wants to see results
+    const result = await checkBacklinkIndexStatus(id, limit || 20);
+    return { message: 'Backlink index check complete', ...result };
+  });
+
+  // Get backlink indexation stats
+  app.get('/api/indexer/projects/:id/backlinks/index-stats', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+
+    const stats = await pool.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE status IN ('submitted', 'verified')) as total_backlinks,
+         COUNT(*) FILTER (WHERE indexnow_submitted = true) as indexnow_submitted,
+         COUNT(*) FILTER (WHERE index_status = 'indexed') as indexed,
+         COUNT(*) FILTER (WHERE index_status = 'not_indexed') as not_indexed,
+         COUNT(*) FILTER (WHERE index_status = 'unknown' OR index_status IS NULL) as unchecked
+       FROM backlink_results
+       WHERE project_id = $1 AND status IN ('submitted', 'verified')`,
+      [id]
+    );
+
+    const row = stats.rows[0];
+    return {
+      totalBacklinks: parseInt(row.total_backlinks),
+      indexnowSubmitted: parseInt(row.indexnow_submitted),
+      indexed: parseInt(row.indexed),
+      notIndexed: parseInt(row.not_indexed),
+      unchecked: parseInt(row.unchecked),
     };
   });
 
@@ -631,7 +702,17 @@ export async function indexerRoutes(app: FastifyInstance) {
   app.post('/api/indexer/campaigns/:campaignId/process', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { campaignId } = request.params as { campaignId: string };
     // Run in background so we don't hit Render's 30s HTTP timeout
-    processCampaignBatch(campaignId, true).catch(err => console.error('[CampaignBatch] Error:', err));
+    processCampaignBatch(campaignId, true).then(async (result) => {
+      // Auto-submit new backlink URLs to IndexNow after drip-feed batch
+      if (result.succeeded > 0) {
+        const campaign = await pool.query('SELECT project_id FROM indexer_campaigns WHERE id = $1', [campaignId]);
+        if (campaign.rows.length > 0) {
+          submitBacklinkUrlsToIndexNow(campaign.rows[0].project_id, result.succeeded).catch(err =>
+            console.error('[AutoDripFeedIndexNow] Error:', err)
+          );
+        }
+      }
+    }).catch(err => console.error('[CampaignBatch] Error:', err));
     return { message: 'Batch processing started in background', succeeded: 0, failed: 0, remaining: 0, paused: false, processing: true };
   });
 

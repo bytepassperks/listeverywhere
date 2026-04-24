@@ -350,6 +350,12 @@ const backlinkEnhancementMigrations = [
   `CREATE INDEX IF NOT EXISTS idx_backlink_results_endpoint ON backlink_results(endpoint_id)`,
   `CREATE INDEX IF NOT EXISTS idx_backlink_results_status ON backlink_results(status)`,
   `CREATE INDEX IF NOT EXISTS idx_backlink_results_project_endpoint ON backlink_results(project_id, endpoint_id)`,
+  `ALTER TABLE backlink_results ADD COLUMN IF NOT EXISTS indexnow_submitted BOOLEAN DEFAULT false`,
+  `ALTER TABLE backlink_results ADD COLUMN IF NOT EXISTS indexnow_submitted_at TIMESTAMP WITH TIME ZONE`,
+  `ALTER TABLE backlink_results ADD COLUMN IF NOT EXISTS index_status VARCHAR(50)`,
+  `ALTER TABLE backlink_results ADD COLUMN IF NOT EXISTS index_checked_at TIMESTAMP WITH TIME ZONE`,
+  `CREATE INDEX IF NOT EXISTS idx_backlink_results_indexnow ON backlink_results(indexnow_submitted)`,
+  `CREATE INDEX IF NOT EXISTS idx_backlink_results_index_status ON backlink_results(index_status)`,
 ];
 
 export async function runMigrations() {

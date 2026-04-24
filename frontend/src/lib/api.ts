@@ -512,6 +512,33 @@ class ApiClient {
   getDownloadDisavowUrl(projectId: string) {
     return `${API_BASE}/api/indexer/projects/${projectId}/disavow?download=true`;
   }
+
+  // 11. Submit backlink URLs to IndexNow
+  async submitBacklinksToIndexNow(projectId: string, limit = 500) {
+    return this.request<{ message: string; processing: boolean }>(
+      `/api/indexer/projects/${projectId}/backlinks/submit-indexnow`,
+      { method: 'POST', body: JSON.stringify({ limit }) }
+    );
+  }
+
+  // 12. Check if backlink URLs are indexed
+  async checkBacklinkIndexStatus(projectId: string, limit = 20) {
+    return this.request<{
+      message: string; checked: number; indexed: number; notIndexed: number; unknown: number;
+      results: Array<{ url: string; name: string; status: string }>;
+    }>(
+      `/api/indexer/projects/${projectId}/backlinks/check-indexed`,
+      { method: 'POST', body: JSON.stringify({ limit }) }
+    );
+  }
+
+  // 13. Get backlink indexation stats
+  async getBacklinkIndexStats(projectId: string) {
+    return this.request<{
+      totalBacklinks: number; indexnowSubmitted: number;
+      indexed: number; notIndexed: number; unchecked: number;
+    }>(`/api/indexer/projects/${projectId}/backlinks/index-stats`);
+  }
 }
 
 export const api = new ApiClient();
