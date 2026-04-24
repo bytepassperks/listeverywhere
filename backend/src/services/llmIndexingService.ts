@@ -117,14 +117,17 @@ export async function submitToLLMEngines(projectId: string): Promise<{
         method: 'web_presence',
       });
 
-      // Save as backlink result
+      // Save as backlink result (only if endpoint exists in DB, otherwise skip to avoid NOT NULL violation)
       if (success) {
-        await pool.query(
-          `INSERT INTO backlink_results (project_id, endpoint_id, endpoint_name, endpoint_category, target_url, backlink_url, status, http_status)
-           VALUES ($1, (SELECT id FROM backlink_endpoints WHERE name = $2 LIMIT 1), $2, 'llm_indexing', $3, $4, 'submitted', $5)
-           ON CONFLICT DO NOTHING`,
-          [projectId, endpoint.name, url, targetUrl, response.status]
-        );
+        const epLookup = await pool.query('SELECT id FROM backlink_endpoints WHERE name = $1 LIMIT 1', [endpoint.name]);
+        if (epLookup.rows.length > 0) {
+          await pool.query(
+            `INSERT INTO backlink_results (project_id, endpoint_id, endpoint_name, endpoint_category, target_url, backlink_url, status, http_status)
+             VALUES ($1, $2, $3, 'llm_indexing', $4, $5, 'submitted', $6)
+             ON CONFLICT DO NOTHING`,
+            [projectId, epLookup.rows[0].id, endpoint.name, url, targetUrl, response.status]
+          );
+        }
       }
     } catch (err) {
       results.push({
