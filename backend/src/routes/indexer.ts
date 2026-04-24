@@ -59,6 +59,20 @@ export async function indexerRoutes(app: FastifyInstance) {
       [id]
     );
 
+    // Recompute indexed/not_indexed counts from actual URL statuses
+    const countResult = await pool.query(
+      `SELECT COUNT(*) as total,
+              COUNT(*) FILTER (WHERE index_status = 'indexed') as indexed_count,
+              COUNT(*) FILTER (WHERE index_status = 'not_indexed') as not_indexed_count
+       FROM indexer_urls WHERE project_id = $1`,
+      [id]
+    );
+    const counts = countResult.rows[0];
+    const project = result.rows[0];
+    project.indexed_count = parseInt(counts.indexed_count);
+    project.not_indexed_count = parseInt(counts.not_indexed_count);
+    project.total_urls = parseInt(counts.total);
+
     // Get recent activity
     const activity = await pool.query(
       `SELECT * FROM indexer_activity_log WHERE project_id = $1 ORDER BY created_at DESC LIMIT 20`,
@@ -66,7 +80,7 @@ export async function indexerRoutes(app: FastifyInstance) {
     );
 
     return {
-      project: result.rows[0],
+      project,
       urlStats: urlStats.rows,
       activity: activity.rows,
     };
@@ -301,7 +315,7 @@ export async function indexerRoutes(app: FastifyInstance) {
 
     if (check_all) {
       const result = await pool.query(
-        `SELECT id FROM indexer_urls WHERE project_id = $1 AND (index_status = 'unknown' OR index_status = 'not_indexed') LIMIT 50`,
+        `SELECT id FROM indexer_urls WHERE project_id = $1 ORDER BY last_checked ASC NULLS FIRST LIMIT 50`,
         [id]
       );
       urlIds = result.rows.map((r: { id: string }) => r.id);

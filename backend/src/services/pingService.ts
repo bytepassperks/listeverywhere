@@ -162,7 +162,7 @@ export async function batchCheckIndexStatus(
   const countResult = await pool.query(
     `SELECT COUNT(*) as total,
             COUNT(*) FILTER (WHERE index_status = 'indexed') as indexed_count,
-            COUNT(*) FILTER (WHERE index_status NOT IN ('indexed', 'unknown')) as not_indexed_count
+            COUNT(*) FILTER (WHERE index_status = 'not_indexed') as not_indexed_count
      FROM indexer_urls WHERE project_id = $1`,
     [projectId]
   );
