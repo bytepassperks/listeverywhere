@@ -10,21 +10,7 @@ export interface EndpointEntry {
   category: string;
 }
 
-const countries = [
-  'us', 'uk', 'ca', 'au', 'de', 'fr', 'es', 'it', 'nl', 'be', 'pt', 'br',
-  'mx', 'ar', 'cl', 'co', 'pe', 'jp', 'kr', 'cn', 'tw', 'hk', 'sg', 'my',
-  'th', 'vn', 'id', 'ph', 'in', 'pk', 'bd', 'lk', 'np', 'ru', 'ua', 'pl',
-  'cz', 'sk', 'hu', 'ro', 'bg', 'hr', 'rs', 'si', 'at', 'ch', 'dk', 'se',
-  'no', 'fi', 'ie', 'nz', 'za', 'ng', 'ke', 'gh', 'eg', 'ma', 'tn', 'sa',
-  'ae', 'il', 'tr', 'gr', 'cy', 'mt', 'is', 'ee', 'lv', 'lt', 'lu', 'li',
-  'mc', 'ad', 'sm', 'al', 'ba', 'mk', 'me', 'md', 'by', 'ge',
-  'am', 'az', 'kz', 'uz', 'kg', 'tj', 'mn', 'la', 'kh', 'mm', 'bn',
-  'tl', 'pg', 'fj', 'ws', 'to', 'vu', 'sb', 'ki', 'tv', 'nr', 'pw', 'fm',
-  'mh', 'ck', 'nu', 'tk', 'pr', 'cu', 'jm', 'do', 'tt', 'bb', 'bs', 'bz',
-  'gy', 'sr', 'aw', 'gl', 'fo',
-];
-
-const extensions = ['com', 'net', 'org', 'info', 'co', 'io', 'me', 'biz'];
+// Languages for Wikipedia variants
 
 const languages = [
   'en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'ru', 'ja', 'ko', 'zh', 'ar',
@@ -244,109 +230,9 @@ export function generateMassEndpoints(): EndpointEntry[] {
 
   console.log(`[MassGen] Curated real endpoints: ${endpoints.length}`);
 
-  // ========== MASS GENERATION ==========
+  // ========== REAL ADDITIONAL ENDPOINTS ==========
 
-  const categoryConfig: Record<string, { subdomains: string[]; paths: string[] }> = {
-    whois: {
-      subdomains: ['whois', 'lookup', 'domain', 'who', 'registrar', 'registration', 'domaininfo', 'whois-lookup', 'domain-whois', 'domain-lookup'],
-      paths: ['/whois/{DOMAIN}', '/lookup/{DOMAIN}', '/domain/{DOMAIN}', '/search?domain={DOMAIN}', '/{DOMAIN}', '/check/{DOMAIN}', '/info/{DOMAIN}', '/query/{DOMAIN}', '/result?domain={DOMAIN}', '/whois/result/{DOMAIN}'],
-    },
-    dns_lookup: {
-      subdomains: ['dns', 'nslookup', 'dig', 'dnscheck', 'dnslookup', 'dns-lookup', 'dnsquery', 'resolver', 'nameserver', 'dns-tools'],
-      paths: ['/lookup/{DOMAIN}', '/check/{DOMAIN}', '/{DOMAIN}', '/query/{DOMAIN}', '/dns/{DOMAIN}', '/resolve/{DOMAIN}', '/dig/{DOMAIN}', '/test/{DOMAIN}', '/scan/{DOMAIN}', '/analyze/{DOMAIN}'],
-    },
-    seo_analyzer: {
-      subdomains: ['seo', 'audit', 'analyzer', 'checker', 'grader', 'score', 'review', 'seo-check', 'website-audit', 'seo-analyzer'],
-      paths: ['/analyze/{DOMAIN}', '/audit/{DOMAIN}', '/check/{DOMAIN}', '/report/{DOMAIN}', '/score/{DOMAIN}', '/grade/{DOMAIN}', '/review/{DOMAIN}', '/{DOMAIN}', '/scan/{DOMAIN}', '/test/{DOMAIN}'],
-    },
-    speed_test: {
-      subdomains: ['speed', 'pagespeed', 'performance', 'loadtime', 'speedtest', 'website-speed', 'page-speed', 'speed-test', 'fast', 'benchmark'],
-      paths: ['/test/{DOMAIN}', '/check/{DOMAIN}', '/analyze/{DOMAIN}', '/{DOMAIN}', '/speed/{DOMAIN}', '/performance/{DOMAIN}', '/report/{DOMAIN}', '/result/{DOMAIN}', '/measure/{DOMAIN}', '/scan/{DOMAIN}'],
-    },
-    security_scan: {
-      subdomains: ['security', 'ssl', 'safe', 'secure', 'scan', 'malware', 'vulnerability', 'firewall', 'protection', 'safety'],
-      paths: ['/scan/{DOMAIN}', '/check/{DOMAIN}', '/analyze/{DOMAIN}', '/{DOMAIN}', '/test/{DOMAIN}', '/report/{DOMAIN}', '/audit/{DOMAIN}', '/verify/{DOMAIN}', '/inspect/{DOMAIN}', '/monitor/{DOMAIN}'],
-    },
-    website_info: {
-      subdomains: ['info', 'stats', 'traffic', 'value', 'rank', 'worth', 'data', 'profile', 'metrics', 'analytics'],
-      paths: ['/site/{DOMAIN}', '/info/{DOMAIN}', '/{DOMAIN}', '/stats/{DOMAIN}', '/report/{DOMAIN}', '/analysis/{DOMAIN}', '/profile/{DOMAIN}', '/data/{DOMAIN}', '/overview/{DOMAIN}', '/details/{DOMAIN}'],
-    },
-    social_bookmark: {
-      subdomains: ['bookmark', 'save', 'share', 'link', 'social', 'mark', 'clip', 'keep', 'store', 'collect'],
-      paths: ['/submit/{DOMAIN}', '/add/{DOMAIN}', '/save/{DOMAIN}', '/share/{DOMAIN}', '/{DOMAIN}', '/bookmark/{DOMAIN}', '/link/{DOMAIN}', '/new/{DOMAIN}', '/post/{DOMAIN}', '/entry/{DOMAIN}'],
-    },
-    directory: {
-      subdomains: ['directory', 'list', 'catalog', 'index', 'listing', 'register', 'submit', 'web-directory', 'site-list', 'business'],
-      paths: ['/submit/{DOMAIN}', '/add/{DOMAIN}', '/list/{DOMAIN}', '/{DOMAIN}', '/register/{DOMAIN}', '/entry/{DOMAIN}', '/site/{DOMAIN}', '/directory/{DOMAIN}', '/search?q={DOMAIN}', '/new/{DOMAIN}'],
-    },
-    web_archive: {
-      subdomains: ['archive', 'cache', 'wayback', 'snapshot', 'history', 'web-archive', 'cached', 'mirror', 'backup', 'preserved'],
-      paths: ['/web/{DOMAIN}', '/view/{DOMAIN}', '/{DOMAIN}', '/cache/{DOMAIN}', '/snapshot/{DOMAIN}', '/history/{DOMAIN}', '/page/{DOMAIN}', '/archive/{DOMAIN}', '/search?q={DOMAIN}', '/lookup/{DOMAIN}'],
-    },
-    ping_service: {
-      subdomains: ['ping', 'notify', 'update', 'xmlrpc', 'rpc', 'blog-ping', 'site-ping', 'web-ping', 'pinger', 'ping-service'],
-      paths: ['/ping/{DOMAIN}', '/submit/{DOMAIN}', '/notify/{DOMAIN}', '/{DOMAIN}', '/update/{DOMAIN}', '/send/{DOMAIN}', '/process/{DOMAIN}', '/request/{DOMAIN}', '/?url={DOMAIN}', '/ping?url={DOMAIN}'],
-    },
-    general: {
-      subdomains: ['check', 'lookup', 'search', 'find', 'discover', 'explore', 'tool', 'web-tool', 'online-tool', 'free-tool'],
-      paths: ['/check/{DOMAIN}', '/lookup/{DOMAIN}', '/{DOMAIN}', '/search?q={DOMAIN}', '/analyze/{DOMAIN}', '/test/{DOMAIN}', '/scan/{DOMAIN}', '/inspect/{DOMAIN}', '/examine/{DOMAIN}', '/verify/{DOMAIN}'],
-    },
-    llm_indexing: {
-      subdomains: ['ai', 'ml', 'search', 'knowledge', 'data', 'index', 'graph', 'semantic', 'entity', 'structured'],
-      paths: ['/search?q={DOMAIN}', '/{DOMAIN}', '/entity/{DOMAIN}', '/knowledge/{DOMAIN}', '/lookup/{DOMAIN}', '/find/{DOMAIN}', '/discover/{DOMAIN}', '/index/{DOMAIN}', '/data/{DOMAIN}', '/info/{DOMAIN}'],
-    },
-  };
-
-  // Generate: {subdomain}.{country}.{ext}{path}
-  for (const [category, config] of Object.entries(categoryConfig)) {
-    const { subdomains, paths } = config;
-    for (const cc of countries) {
-      for (const ext of extensions.slice(0, 8)) {
-        for (const sub of subdomains.slice(0, 5)) {
-          for (const p of paths.slice(0, 3)) {
-            add(`${category.slice(0, 4).toUpperCase()} ${sub}.${cc}.${ext}`, `https://${sub}.${cc}.${ext}${p}`, category);
-          }
-        }
-      }
-    }
-
-    // Generate: {subdomain}-{country}.{ext}{path}
-    for (const cc of countries.slice(0, 60)) {
-      for (const ext of extensions.slice(0, 4)) {
-        for (const sub of subdomains.slice(0, 3)) {
-          for (const p of paths.slice(0, 2)) {
-            add(`${category.slice(0, 4).toUpperCase()} ${sub}-${cc}.${ext}`, `https://${sub}-${cc}.${ext}${p}`, category);
-          }
-        }
-      }
-    }
-
-    // Generate: {country}-{subdomain}.{ext}{path}
-    for (const cc of countries.slice(0, 60)) {
-      for (const ext of extensions.slice(0, 4)) {
-        for (const sub of subdomains.slice(0, 3)) {
-          for (const p of paths.slice(0, 2)) {
-            add(`${category.slice(0, 4).toUpperCase()} ${cc}-${sub}.${ext}`, `https://${cc}-${sub}.${ext}${p}`, category);
-          }
-        }
-      }
-    }
-  }
-
-  console.log(`[MassGen] After regional TLD generation: ${endpoints.length.toLocaleString()}`);
-
-  // DNS record type variants
-  const dnsTypes = ['A', 'AAAA', 'MX', 'NS', 'TXT', 'CNAME', 'SOA', 'SRV', 'CAA', 'PTR', 'DMARC', 'SPF', 'DKIM'];
-  for (const rtype of dnsTypes) {
-    for (const cc of countries.slice(0, 40)) {
-      for (const ext of extensions.slice(0, 4)) {
-        add(`DNS ${rtype} ${cc}.${ext}`, `https://dns.${cc}.${ext}/${rtype}/{DOMAIN}`, 'dns_lookup');
-        add(`DNS ${rtype} check-${cc}.${ext}`, `https://dns-check.${cc}.${ext}/${rtype}/{DOMAIN}`, 'dns_lookup');
-      }
-    }
-  }
-
-  // Google regional domains
+  // Google regional search (real Google domains)
   const googleTlds = [
     'co.uk', 'ca', 'com.au', 'de', 'fr', 'es', 'it', 'nl', 'be', 'pt',
     'com.br', 'com.mx', 'com.ar', 'cl', 'co', 'co.jp', 'co.kr', 'com.tw',
@@ -354,75 +240,85 @@ export function generateMassEndpoints(): EndpointEntry[] {
     'ie', 'co.nz', 'co.za', 'com.ng', 'co.ke', 'com.eg', 'com.sa', 'ae',
     'co.il', 'com.tr', 'gr', 'at', 'ch', 'hu', 'ro', 'bg', 'hr', 'rs',
   ];
-  const searchOps = ['site:', 'link:', 'related:', 'info:', 'cache:', 'intitle:', 'inurl:'];
   for (const tld of googleTlds) {
-    for (const q of searchOps) {
-      add(`Google ${tld} ${q}`, `https://www.google.${tld}/search?q=${q}{DOMAIN}`, 'general');
-    }
+    add(`Google ${tld}`, `https://www.google.${tld}/search?q=site:{DOMAIN}`, 'general');
   }
 
-  // Wikipedia in many languages
+  // Wikipedia in many languages (real Wikipedia domains)
   for (const lang of languages) {
     add(`Wikipedia ${lang}`, `https://${lang}.wikipedia.org/w/index.php?search={DOMAIN}`, 'llm_indexing');
   }
 
-  // Tool domain prefixes x category keywords
-  const prefixes = [
-    'check', 'test', 'scan', 'audit', 'analyze', 'verify', 'inspect', 'monitor',
-    'probe', 'examine', 'evaluate', 'assess', 'grade', 'score', 'rate', 'rank',
-    'measure', 'benchmark', 'profile', 'review', 'report', 'lookup', 'find',
-    'discover', 'explore', 'search', 'query', 'fetch', 'get', 'view',
+  // Bing regional search (real Bing domains)
+  const bingMarkets = ['en-US', 'en-GB', 'en-AU', 'en-CA', 'de-DE', 'fr-FR', 'es-ES', 'it-IT', 'pt-BR', 'ja-JP', 'ko-KR', 'zh-CN'];
+  for (const mkt of bingMarkets) {
+    add(`Bing ${mkt}`, `https://www.bing.com/search?q=site:{DOMAIN}&setmkt=${mkt}`, 'general');
+  }
+
+  // Additional real tools discovered from SEO community
+  const additionalReal: [string, string, string][] = [
+    // More WHOIS/Domain tools
+    ['DNSStuff', 'https://www.dnsstuff.com/tools#whois/{DOMAIN}', 'whois'],
+    ['DomainPunch', 'https://www.domainpunch.com/tools/whois.php?domain={DOMAIN}', 'whois'],
+    ['WhoisMind', 'https://www.whoismind.com/{DOMAIN}', 'whois'],
+    // More SEO tools
+    ['SERPChecker', 'https://serpchecker.com/?q={DOMAIN}', 'seo_analyzer'],
+    ['Ubersuggest', 'https://app.neilpatel.com/en/traffic_analyzer/overview?domain={DOMAIN}', 'seo_analyzer'],
+    ['Alexa Web', 'https://www.alexa.com/siteinfo/{DOMAIN}', 'seo_analyzer'],
+    ['SEMRush Backlinks', 'https://www.semrush.com/analytics/backlinks/overview?q={DOMAIN}', 'seo_analyzer'],
+    ['Serpstat', 'https://serpstat.com/domains/?query={DOMAIN}', 'seo_analyzer'],
+    // More website info
+    ['Netcraft SiteReport', 'https://sitereport.netcraft.com/?url={DOMAIN}', 'website_info'],
+    ['BGP Toolkit', 'https://bgp.he.net/dns/{DOMAIN}', 'website_info'],
+    ['IPinfo', 'https://ipinfo.io/{DOMAIN}', 'website_info'],
+    ['Censys Search', 'https://search.censys.io/search?resource=hosts&q={DOMAIN}', 'website_info'],
+    ['Radar Cloudflare', 'https://radar.cloudflare.com/domains/domain/{DOMAIN}', 'website_info'],
+    // More security
+    ['ImmuniWeb SSL', 'https://www.immuniweb.com/ssl/{DOMAIN}', 'security_scan'],
+    ['Pentest Tools', 'https://pentest-tools.com/information-gathering/find-subdomains-of-domain#{DOMAIN}', 'security_scan'],
+    ['DNSViz', 'https://dnsviz.net/d/{DOMAIN}/dnssec/', 'security_scan'],
+    ['CryptCheck', 'https://tls.imirhil.fr/https/{DOMAIN}', 'security_scan'],
+    // More DNS
+    ['DNS Propagation', 'https://www.whatsmydns.net/#A/{DOMAIN}', 'dns_lookup'],
+    ['Dig Web', 'https://www.digwebinterface.com/?hostnames={DOMAIN}', 'dns_lookup'],
+    ['Kloth DNS', 'https://www.kloth.net/services/nslookup.php?domain={DOMAIN}', 'dns_lookup'],
+    // More social/bookmarks
+    ['Tumblr', 'https://www.tumblr.com/search/{DOMAIN}', 'social_bookmark'],
+    ['Quora', 'https://www.quora.com/search?q={DOMAIN}', 'social_bookmark'],
+    ['DevTo', 'https://dev.to/search?q={DOMAIN}', 'social_bookmark'],
+    ['Hashnode', 'https://hashnode.com/search?q={DOMAIN}', 'social_bookmark'],
+    ['Hacker News', 'https://news.ycombinator.com/from?site={DOMAIN}', 'social_bookmark'],
+    ['Lobsters', 'https://lobste.rs/search?q={DOMAIN}', 'social_bookmark'],
+    ['Slashdot', 'https://slashdot.org/index2.pl?fhfilter={DOMAIN}', 'social_bookmark'],
+    ['Digg', 'https://digg.com/search?q={DOMAIN}', 'social_bookmark'],
+    ['Pocket', 'https://getpocket.com/explore/search?q={DOMAIN}', 'social_bookmark'],
+    ['Instapaper', 'https://www.instapaper.com/search?query={DOMAIN}', 'social_bookmark'],
+    // More directories
+    ['DMOZ', 'https://curlie.org/search?q={DOMAIN}', 'directory'],
+    ['AllTop', 'https://alltop.com/search?q={DOMAIN}', 'directory'],
+    ['Blogarama', 'https://www.blogarama.com/search?q={DOMAIN}', 'directory'],
+    ['Spoke', 'https://www.spoke.com/search?q={DOMAIN}', 'directory'],
+    ['EZLocal', 'https://ezlocal.com/search?q={DOMAIN}', 'directory'],
+    // More LLM/AI platforms
+    ['You.com', 'https://you.com/search?q={DOMAIN}', 'llm_indexing'],
+    ['Kagi', 'https://kagi.com/search?q={DOMAIN}', 'llm_indexing'],
+    ['Neeva', 'https://neeva.com/search?q={DOMAIN}', 'llm_indexing'],
+    ['Andi', 'https://andisearch.com/search?q={DOMAIN}', 'llm_indexing'],
+    ['Common Crawl', 'https://index.commoncrawl.org/CC-MAIN-2024-10-index?url=*.{DOMAIN}&output=json', 'llm_indexing'],
+    // More speed/performance
+    ['Lighthouse CI', 'https://googlechrome.github.io/lighthouse/viewer/?url=https://{DOMAIN}', 'speed_test'],
+    ['Yellow Lab', 'https://yellowlab.tools/result/{DOMAIN}', 'speed_test'],
+    ['Dareboost', 'https://www.dareboost.com/en/report/{DOMAIN}', 'speed_test'],
+    // More archives
+    ['Google Cache', 'https://webcache.googleusercontent.com/search?q=cache:{DOMAIN}', 'web_archive'],
+    ['CachedView', 'https://cachedview.nl/#{DOMAIN}', 'web_archive'],
+    ['CoralCDN', 'https://{DOMAIN}.nyud.net/', 'web_archive'],
+    // More ping
+    ['Feed Shark', 'https://feedshark.brainbliss.com/?url=https://{DOMAIN}', 'ping_service'],
+    ['Pingoat', 'https://pingoat.com/?url=https://{DOMAIN}', 'ping_service'],
   ];
-  const catKeywords: Record<string, string[]> = {
-    whois: ['whois', 'domain', 'registrar', 'registration', 'owner'],
-    dns_lookup: ['dns', 'nameserver', 'resolver', 'dig', 'nslookup'],
-    seo_analyzer: ['seo', 'website', 'page', 'site', 'web'],
-    speed_test: ['speed', 'performance', 'load', 'pagespeed', 'fast'],
-    security_scan: ['security', 'ssl', 'safe', 'secure', 'protect'],
-    website_info: ['info', 'stats', 'traffic', 'value', 'worth'],
-    social_bookmark: ['bookmark', 'save', 'share', 'social', 'link'],
-    directory: ['directory', 'list', 'catalog', 'index', 'register'],
-    web_archive: ['archive', 'cache', 'wayback', 'snapshot', 'history'],
-    ping_service: ['ping', 'notify', 'update', 'alert', 'signal'],
-    general: ['tool', 'check', 'analyze', 'test', 'scan'],
-    llm_indexing: ['ai', 'knowledge', 'search', 'data', 'index'],
-  };
+  additionalReal.forEach(([n, u, c]) => add(n, u, c));
 
-  for (const [category, keywords] of Object.entries(catKeywords)) {
-    for (const prefix of prefixes.slice(0, 30)) {
-      for (const kw of keywords.slice(0, 3)) {
-        for (const ext of extensions.slice(0, 6)) {
-          const domain = `${prefix}${kw}.${ext}`;
-          add(`${category.slice(0, 4).toUpperCase()} ${domain}`, `https://www.${domain}/{DOMAIN}`, category);
-          add(`${category.slice(0, 4).toUpperCase()} ${domain}/check`, `https://www.${domain}/check/{DOMAIN}`, category);
-        }
-      }
-    }
-  }
-
-  // Numbered tool sites
-  for (const [category, keywords] of Object.entries(catKeywords)) {
-    for (const kw of keywords.slice(0, 2)) {
-      for (let num = 1; num <= 200; num++) {
-        for (const ext of ['com', 'net', 'org']) {
-          add(`${category.slice(0, 4).toUpperCase()} ${kw}${num}.${ext}`, `https://www.${kw}${num}.${ext}/{DOMAIN}`, category);
-        }
-      }
-    }
-  }
-
-  // Multi-language variants
-  for (const [category, keywords] of Object.entries(catKeywords)) {
-    for (const lang of languages.slice(0, 30)) {
-      for (const kw of keywords.slice(0, 2)) {
-        for (const ext of extensions.slice(0, 4)) {
-          add(`${category.slice(0, 4).toUpperCase()} ${lang}-${kw}.${ext}`, `https://www.${lang}-${kw}.${ext}/{DOMAIN}`, category);
-          add(`${category.slice(0, 4).toUpperCase()} ${lang}.${kw}.${ext}`, `https://${lang}.${kw}.${ext}/{DOMAIN}`, category);
-        }
-      }
-    }
-  }
-
-  console.log(`[MassGen] Total endpoints generated: ${endpoints.length.toLocaleString()}`);
+  console.log(`[MassGen] Total real endpoints: ${endpoints.length}`);
   return endpoints;
 }
