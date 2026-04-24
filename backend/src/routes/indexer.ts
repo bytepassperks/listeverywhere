@@ -340,7 +340,7 @@ export async function indexerRoutes(app: FastifyInstance) {
     }
 
     if (urlIds.length === 0) {
-      return { message: 'No URLs to submit', submitted: 0 };
+      return { message: 'No URLs to submit', submitted: 0, errors: [] };
     }
 
     const result = await submitUrlsViaIndexNow(id, urlIds);

@@ -213,7 +213,7 @@ export default function IndexerProjectPage() {
     setSubmittingIndexNow(true);
     try {
       const result = await api.submitIndexNow(projectId, undefined, true);
-      showResult(`IndexNow: Submitted ${result.submitted} URLs to Bing/Yandex. ${result.errors.length ? `Errors: ${result.errors.length}` : ''}`);
+      showResult(`IndexNow: Submitted ${result.submitted} URLs to Bing/Yandex. ${result.errors?.length ? `Errors: ${result.errors.length}` : ''}`);
       await loadProject();
     } catch (err) {
       showResult(`Error: ${err instanceof Error ? err.message : 'Submit failed'}`);
