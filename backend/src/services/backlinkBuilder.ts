@@ -78,15 +78,28 @@ export async function buildBacklinks(
   projectId: string,
   targetUrl: string,
   domain: string,
-  categories?: string[]
-): Promise<{ submitted: number; errors: string[] }> {
-  let query = 'SELECT id, name, url_template, category FROM backlink_endpoints WHERE active = true';
-  const params: (string | string[])[] = [];
+  categories?: string[],
+  maxEndpoints: number = 50
+): Promise<{ submitted: number; errors: string[]; totalAvailable: number }> {
+  // Only select endpoints we haven't already submitted to for this project
+  let query = `SELECT be.id, be.name, be.url_template, be.category 
+    FROM backlink_endpoints be 
+    LEFT JOIN backlink_results br ON br.endpoint_id = be.id AND br.project_id = $1
+    WHERE be.active = true AND br.id IS NULL`;
+  const params: (string | string[] | number)[] = [projectId];
 
   if (categories && categories.length > 0) {
     params.push(categories);
-    query += ` AND category = ANY($${params.length})`;
+    query += ` AND be.category = ANY($${params.length})`;
   }
+
+  // Count total available
+  const countQuery = query.replace(/SELECT be\.id.*FROM/, 'SELECT COUNT(*) as count FROM');
+  const countResult = await pool.query(countQuery, params);
+  const totalAvailable = parseInt(countResult.rows[0].count);
+
+  params.push(maxEndpoints);
+  query += ` ORDER BY COALESCE(be.domain_authority, 0) DESC LIMIT $${params.length}`;
 
   const result = await pool.query(query, params);
   const endpoints = result.rows;
@@ -149,7 +162,7 @@ export async function buildBacklinks(
     [projectId, JSON.stringify({ target_url: targetUrl, total_endpoints: endpoints.length, submitted, errors_count: errors.length })]
   );
 
-  return { submitted, errors: errors.slice(0, 20) };
+  return { submitted, errors: errors.slice(0, 20), totalAvailable: totalAvailable - endpoints.length };
 }
 
 export async function getBacklinkStats(projectId: string): Promise<{

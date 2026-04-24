@@ -447,8 +447,8 @@ export async function indexerRoutes(app: FastifyInstance) {
     const domain = project.rows[0].domain;
     const targetUrl = `https://${domain}`;
 
-    const result = await buildBacklinks(id, targetUrl, domain, categories);
-    return { message: 'Backlink building complete', ...result };
+    const result = await buildBacklinks(id, targetUrl, domain, categories, 50);
+    return { message: `Backlink building complete: ${result.submitted} submitted`, ...result };
   });
 
   // Get backlink stats for project
