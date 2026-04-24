@@ -81,11 +81,17 @@ export async function buildBacklinks(
   categories?: string[],
   maxEndpoints: number = 50
 ): Promise<{ submitted: number; errors: string[]; totalAvailable: number }> {
-  // Only select endpoints we haven't already submitted to for this project
+  // Select endpoints not yet tried for this project, excluding globally-failed ones
+  // A "globally failed" endpoint has ONLY error results across all projects
   let query = `SELECT be.id, be.name, be.url_template, be.category 
     FROM backlink_endpoints be 
     LEFT JOIN backlink_results br ON br.endpoint_id = be.id AND br.project_id = $1
-    WHERE be.active = true AND br.id IS NULL`;
+    WHERE be.active = true AND br.id IS NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM backlink_results br2 
+      WHERE br2.endpoint_id = be.id AND br2.status = 'error'
+      HAVING COUNT(*) > 2 AND COUNT(*) FILTER (WHERE br2.status != 'error') = 0
+    )`;
   const params: (string | string[] | number)[] = [projectId];
 
   if (categories && categories.length > 0) {
@@ -93,13 +99,18 @@ export async function buildBacklinks(
     query += ` AND be.category = ANY($${params.length})`;
   }
 
-  // Count total available
-  const countQuery = query.replace(/SELECT be\.id.*FROM/, 'SELECT COUNT(*) as count FROM');
-  const countResult = await pool.query(countQuery, params);
+  // Count total available (simple count of not-yet-tried)
+  const countResult = await pool.query(
+    `SELECT COUNT(*) as count FROM backlink_endpoints be 
+     LEFT JOIN backlink_results br ON br.endpoint_id = be.id AND br.project_id = $1
+     WHERE be.active = true AND br.id IS NULL`,
+    [projectId]
+  );
   const totalAvailable = parseInt(countResult.rows[0].count);
 
+  // Prioritize: 1) endpoints with known DA scores (real/verified sites), 2) rest by name
   params.push(maxEndpoints);
-  query += ` ORDER BY COALESCE(be.domain_authority, 0) DESC LIMIT $${params.length}`;
+  query += ` ORDER BY CASE WHEN be.domain_authority IS NOT NULL THEN 0 ELSE 1 END, COALESCE(be.domain_authority, 0) DESC LIMIT $${params.length}`;
 
   const result = await pool.query(query, params);
   const endpoints = result.rows;
