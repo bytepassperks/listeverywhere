@@ -220,9 +220,9 @@ async function autoSeedEndpoints() {
     // If we have too many endpoints (leftover from fake mass generation), clean them out
     if (count > 1000) {
       console.log('[AutoSeed] Too many endpoints detected (likely fake mass-generated) — cleaning...');
-      await pool.query('DELETE FROM backlink_results WHERE status = \'error\'');
-      await pool.query('TRUNCATE TABLE backlink_endpoints CASCADE');
-      console.log('[AutoSeed] Truncated endpoints table. Re-seeding with real verified endpoints...');
+      // Truncate all tables that reference backlink_endpoints at once (avoids FK cascade locks)
+      await pool.query('TRUNCATE TABLE indexer_campaign_queue, backlink_results, backlink_endpoints');
+      console.log('[AutoSeed] Truncated both tables. Re-seeding with real verified endpoints...');
       const { seedBacklinkEndpoints } = await import('./services/backlinkBuilder');
       const seeded = await seedBacklinkEndpoints();
       console.log(`[AutoSeed] Seed complete: ${seeded} real endpoints added`);
