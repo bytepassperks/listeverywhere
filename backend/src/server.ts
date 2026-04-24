@@ -217,24 +217,22 @@ async function autoSeedEndpoints() {
     const count = parseInt(result.rows[0].count);
     console.log(`[AutoSeed] Current active endpoint count: ${count.toLocaleString()}`);
 
-    // If we have too many endpoints (leftover from mass generation), clean them out
-    if (count > 2000) {
-      console.log('[AutoSeed] Too many endpoints detected — cleaning fake mass-generated ones...');
-      // Delete backlink_results first (FK constraint)
+    // If we have too many endpoints (leftover from fake mass generation), clean them out
+    if (count > 1000) {
+      console.log('[AutoSeed] Too many endpoints detected (likely fake mass-generated) — cleaning...');
       await pool.query('DELETE FROM backlink_results WHERE status = \'error\'');
-      // Truncate endpoints and re-seed with only real ones
       await pool.query('TRUNCATE TABLE backlink_endpoints CASCADE');
-      console.log('[AutoSeed] Truncated endpoints table. Re-seeding with real curated endpoints...');
+      console.log('[AutoSeed] Truncated endpoints table. Re-seeding with real verified endpoints...');
       const { seedBacklinkEndpoints } = await import('./services/backlinkBuilder');
       const seeded = await seedBacklinkEndpoints();
-      console.log(`[AutoSeed] Seed complete: ${seeded.toLocaleString()} real endpoints added`);
-    } else if (count < 200) {
-      console.log('[AutoSeed] Endpoint count low — seeding real curated endpoints...');
+      console.log(`[AutoSeed] Seed complete: ${seeded} real endpoints added`);
+    } else if (count < 400) {
+      console.log('[AutoSeed] Endpoint count low — seeding real verified endpoints...');
       const { seedBacklinkEndpoints } = await import('./services/backlinkBuilder');
       const seeded = await seedBacklinkEndpoints();
-      console.log(`[AutoSeed] Seed complete: ${seeded.toLocaleString()} new endpoints added`);
+      console.log(`[AutoSeed] Seed complete: ${seeded} endpoints upserted`);
     } else {
-      console.log('[AutoSeed] Endpoint count looks good — skipping seed');
+      console.log(`[AutoSeed] Endpoint count ${count} looks good — skipping seed`);
     }
   } catch (err) {
     console.error('[AutoSeed] Error:', err);

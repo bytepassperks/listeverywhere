@@ -3,57 +3,53 @@ import { getAllEndpoints } from './endpointDatabase';
 import { generateMassEndpoints } from './massEndpointGenerator';
 
 export async function seedBacklinkEndpoints(): Promise<number> {
-  // Generate mass endpoints programmatically (245K+)
-  let endpoints: Array<{ name: string; url_template: string; category: string }>;
+  // Get all real verified endpoints
+  let endpoints: Array<{ name: string; url_template: string; category: string; tier?: number }>;
   try {
     endpoints = generateMassEndpoints();
-    console.log(`[Seed] Generated ${endpoints.length.toLocaleString()} endpoints from mass generator`);
+    console.log(`[Seed] Loaded ${endpoints.length} real verified endpoints`);
   } catch (err) {
-    console.error('[Seed] Mass generator failed, falling back to hardcoded:', err);
+    console.error('[Seed] Endpoint generator failed, falling back to legacy:', err);
     endpoints = getAllEndpoints();
   }
 
-  // Check current count
   const currentCount = await pool.query('SELECT COUNT(*) as count FROM backlink_endpoints');
   const existing = parseInt(currentCount.rows[0].count);
-  console.log(`[Seed] Current endpoint count: ${existing.toLocaleString()}`);
+  console.log(`[Seed] Current endpoint count: ${existing}`);
 
-  // Batch insert for performance (1000 at a time)
   let seeded = 0;
-  const batchSize = 1000;
+  const batchSize = 200;
 
   for (let i = 0; i < endpoints.length; i += batchSize) {
     const batch = endpoints.slice(i, i + batchSize);
 
-    // Build multi-row INSERT
     const values: string[] = [];
-    const params: string[] = [];
+    const params: (string | number | boolean)[] = [];
     let paramIndex = 1;
 
     for (const ep of batch) {
-      values.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, true)`);
-      params.push(ep.name, ep.url_template, ep.category);
-      paramIndex += 3;
+      values.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, true, $${paramIndex + 3})`);
+      params.push(ep.name, ep.url_template, ep.category, ep.tier || 4);
+      paramIndex += 4;
     }
 
     try {
       const result = await pool.query(
-        `INSERT INTO backlink_endpoints (name, url_template, category, active)
+        `INSERT INTO backlink_endpoints (name, url_template, category, active, tier)
          VALUES ${values.join(', ')}
-         ON CONFLICT (url_template) DO NOTHING`,
+         ON CONFLICT (url_template) DO UPDATE SET tier = EXCLUDED.tier, name = EXCLUDED.name, category = EXCLUDED.category`,
         params
       );
       seeded += result.rowCount || 0;
     } catch (err) {
-      // If batch fails, try individual inserts for this batch
       for (const ep of batch) {
         try {
           const result = await pool.query(
-            `INSERT INTO backlink_endpoints (name, url_template, category, active)
-             VALUES ($1, $2, $3, true)
-             ON CONFLICT (url_template) DO NOTHING
+            `INSERT INTO backlink_endpoints (name, url_template, category, active, tier)
+             VALUES ($1, $2, $3, true, $4)
+             ON CONFLICT (url_template) DO UPDATE SET tier = $4, name = $1, category = $3
              RETURNING id`,
-            [ep.name, ep.url_template, ep.category]
+            [ep.name, ep.url_template, ep.category, ep.tier || 4]
           );
           if (result.rowCount && result.rowCount > 0) seeded++;
         } catch {
@@ -61,15 +57,10 @@ export async function seedBacklinkEndpoints(): Promise<number> {
         }
       }
     }
-
-    // Log progress every 50K
-    if ((i + batchSize) % 50000 < batchSize) {
-      console.log(`[Seed] Progress: ${Math.min(i + batchSize, endpoints.length).toLocaleString()}/${endpoints.length.toLocaleString()} processed, ${seeded.toLocaleString()} new`);
-    }
   }
 
   const finalCount = await pool.query('SELECT COUNT(*) as count FROM backlink_endpoints');
-  console.log(`[Seed] Done. ${seeded.toLocaleString()} new endpoints added. Total: ${parseInt(finalCount.rows[0].count).toLocaleString()}`);
+  console.log(`[Seed] Done. ${seeded} endpoints upserted. Total: ${parseInt(finalCount.rows[0].count)}`);
 
   return seeded;
 }
@@ -81,8 +72,7 @@ export async function buildBacklinks(
   categories?: string[],
   maxEndpoints: number = 50
 ): Promise<{ submitted: number; errors: string[]; totalAvailable: number }> {
-  // Fast query: pick endpoints with DA scores (real/verified) not yet tried for this project
-  // Uses a subquery on IDs to avoid slow LEFT JOIN on 192K rows
+  // Get already-tried endpoint IDs for this project
   const alreadyTriedResult = await pool.query(
     'SELECT DISTINCT endpoint_id FROM backlink_results WHERE project_id = $1',
     [projectId]
@@ -95,27 +85,28 @@ export async function buildBacklinks(
   if (alreadyTriedIds.length > 0) {
     params.push(alreadyTriedIds);
     query = `SELECT id, name, url_template, category FROM backlink_endpoints 
-      WHERE active = true AND domain_authority IS NOT NULL AND id != ALL($1)`;
+      WHERE active = true AND id != ALL($1)`;
     if (categories && categories.length > 0) {
       params.push(categories);
       query += ` AND category = ANY($${params.length})`;
     }
   } else {
     query = `SELECT id, name, url_template, category FROM backlink_endpoints 
-      WHERE active = true AND domain_authority IS NOT NULL`;
+      WHERE active = true`;
     if (categories && categories.length > 0) {
       params.push(categories);
       query += ` AND category = ANY($${params.length})`;
     }
   }
 
+  // Order by tier (1=highest priority) then by DA if available
   params.push(maxEndpoints);
-  query += ` ORDER BY domain_authority DESC LIMIT $${params.length}`;
+  query += ` ORDER BY COALESCE(tier, 4) ASC, COALESCE(domain_authority, 0) DESC LIMIT $${params.length}`;
 
   const result = await pool.query(query, params);
   const endpoints = result.rows;
 
-  const totalCountResult = await pool.query('SELECT COUNT(*) FROM backlink_endpoints WHERE active = true AND domain_authority IS NOT NULL');
+  const totalCountResult = await pool.query('SELECT COUNT(*) FROM backlink_endpoints WHERE active = true');
   const totalAvailable = parseInt(totalCountResult.rows[0].count) - alreadyTriedIds.length;
 
   let submitted = 0;
@@ -169,7 +160,6 @@ export async function buildBacklinks(
     await Promise.all(promises);
   }
 
-  // Log activity
   await pool.query(
     `INSERT INTO indexer_activity_log (project_id, action, details)
      VALUES ($1, 'backlink_build', $2)`,

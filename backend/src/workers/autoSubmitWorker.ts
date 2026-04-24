@@ -71,8 +71,8 @@ export async function runAutoSubmit(batchSize = 50): Promise<{
       const { rows } = await pool.query(
         `SELECT id as endpoint_id, name as endpoint_name, url_template, category
          FROM backlink_endpoints
-         WHERE active = true AND domain_authority IS NOT NULL AND id != ALL($1)
-         ORDER BY RANDOM()
+         WHERE active = true AND id != ALL($1)
+         ORDER BY COALESCE(tier, 4) ASC, RANDOM()
          LIMIT $2`,
         [triedIds, batchSize]
       );
@@ -81,8 +81,8 @@ export async function runAutoSubmit(batchSize = 50): Promise<{
       const { rows } = await pool.query(
         `SELECT id as endpoint_id, name as endpoint_name, url_template, category
          FROM backlink_endpoints
-         WHERE active = true AND domain_authority IS NOT NULL
-         ORDER BY RANDOM()
+         WHERE active = true
+         ORDER BY COALESCE(tier, 4) ASC, RANDOM()
          LIMIT $1`,
         [batchSize]
       );
