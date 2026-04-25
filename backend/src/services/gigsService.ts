@@ -505,6 +505,21 @@ async function fulfillAISearch(orderId: string, userId: string, domain: string, 
   const report = generateAISearchReport(domain, tier, submitResult, visibility, blResult);
   await addDeliverable(orderId, 'report', `AI Search Submission Report - ${domain}`, report, 'html');
   steps.push('Deliverable report generated');
+
+  // Step 5: Generate AI Submissions CSV
+  const aiCsvHeaders = ['Engine', 'Method', 'Status', 'Platform', 'Visible'];
+  const aiCsvRows = submitResult.results.map(r => {
+    const vis = visibility.checks.find(c => c.platform.toLowerCase().includes(r.engine.split(' ')[0].toLowerCase()));
+    return [r.engine, r.method, r.status, vis?.platform || '', vis ? (vis.found ? 'YES' : 'NO') : ''].join(',');
+  });
+  const aiCsv = [aiCsvHeaders.join(','), ...aiCsvRows].join('\n');
+  await addDeliverable(orderId, 'csv', `AI Submissions - ${domain}.csv`, aiCsv, 'csv');
+  steps.push('AI submissions CSV generated');
+
+  // Step 6: Generate backlinks CSV (AI-related backlinks built)
+  const csv = await generateBacklinkCSV(project.id);
+  await addDeliverable(orderId, 'csv', `AI Backlinks - ${domain}.csv`, csv, 'csv');
+  steps.push('Backlinks CSV generated');
   await updateOrderStatus(orderId, 'processing', 95);
 }
 
@@ -595,6 +610,32 @@ async function fulfillDripFeed(orderId: string, userId: string, domain: string, 
   const report = generateDripFeedReport(domain, tier, campaignResult, firstBatch);
   await addDeliverable(orderId, 'report', `Drip-Feed Campaign Report - ${domain}`, report, 'html');
   steps.push('Campaign report generated');
+
+  // Generate campaign schedule CSV
+  const { rows: queueRows } = await pool.query(
+    `SELECT cq.status, cq.http_status, cq.processed_at, cq.error,
+            be.name as endpoint_name, be.url_template, be.category
+     FROM indexer_campaign_queue cq
+     JOIN backlink_endpoints be ON be.id = cq.endpoint_id
+     WHERE cq.campaign_id = $1
+     ORDER BY cq.processed_at DESC NULLS LAST`,
+    [campaignResult.campaignId]
+  );
+  const campaignCsvHeaders = ['Endpoint', 'Category', 'Status', 'HTTP Status', 'URL', 'Processed At', 'Error'];
+  const campaignCsvRows = queueRows.map((r: { endpoint_name: string; category: string; status: string; http_status: string | null; url_template: string; processed_at: string | null; error: string | null }) => [
+    r.endpoint_name || '', r.category || '', r.status, r.http_status || '',
+    r.url_template?.replace(/{DOMAIN}/g, domain).replace(/{URL}/g, encodeURIComponent(targetUrl)) || '',
+    r.processed_at ? new Date(r.processed_at).toISOString() : 'pending',
+    r.error || '',
+  ].join(','));
+  const campaignCsv = [campaignCsvHeaders.join(','), ...campaignCsvRows].join('\n');
+  await addDeliverable(orderId, 'csv', `Drip-Feed Schedule - ${domain}.csv`, campaignCsv, 'csv');
+  steps.push('Campaign schedule CSV generated');
+
+  // Generate backlinks CSV (backlinks built in first batch)
+  const csv = await generateBacklinkCSV(project.id);
+  await addDeliverable(orderId, 'csv', `Campaign Backlinks - ${domain}.csv`, csv, 'csv');
+  steps.push('Backlinks CSV generated');
 
   // Store campaign ID for tracking
   await pool.query(
