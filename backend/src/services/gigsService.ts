@@ -640,8 +640,13 @@ async function fulfillMonthlySEO(orderId: string, userId: string, domain: string
   steps.push(`Verified: ${verifyResult.verified} live`);
   await updateOrderStatus(orderId, 'processing', 80);
 
-  // Step 5: Comprehensive report
-  const report = generateMonthlySEOReport(domain, tier, blResult, aiResult, visibility, verifyResult);
+  // Step 5: Get actual DB stats and generate comprehensive report
+  const { getBacklinkStats } = await import('./backlinkBuilder');
+  const dbStats = await getBacklinkStats(project.id);
+  const actualBuilt = Math.max(blResult.submitted, dbStats.total);
+  const actualVerified = Math.max(verifyResult.verified, dbStats.verified);
+  const actualDead = Math.max(verifyResult.dead, dbStats.dead);
+  const report = generateMonthlySEOReport(domain, tier, { submitted: actualBuilt, errors: blResult.errors }, aiResult, visibility, { verified: actualVerified, dead: actualDead });
   await addDeliverable(orderId, 'report', `Monthly SEO Report - ${domain}`, report, 'html');
   const csv = await generateBacklinkCSV(project.id);
   await addDeliverable(orderId, 'csv', `Monthly Backlinks - ${domain}.csv`, csv, 'csv');
