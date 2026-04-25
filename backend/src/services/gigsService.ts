@@ -508,16 +508,17 @@ async function fulfillAISearch(orderId: string, userId: string, domain: string, 
   steps.push(`Built ${blResult.submitted} AI-related backlinks`);
   await updateOrderStatus(orderId, 'processing', 80);
 
-  // Step 4: Generate report
-  const report = generateAISearchReport(domain, tier, submitResult, visibility, blResult);
-  await addDeliverable(orderId, 'report', `AI Search Submission Report - ${domain}`, report, 'html');
-  steps.push('Deliverable report generated');
-
-  // Step 5: Run Google index verification on AI backlinks
+  // Step 4: Run Google index verification on AI backlinks
   const { verifyGoogleIndex, getIndexStats } = await import('./indexVerificationService');
   const googleResult = await verifyGoogleIndex(project.id, 20);
   steps.push(`Google index check: ${googleResult.indexed} indexed`);
   await updateOrderStatus(orderId, 'processing', 85);
+
+  // Step 5: Generate report with index stats
+  const indexStats = await getIndexStats(project.id);
+  const report = generateAISearchReport(domain, tier, submitResult, visibility, blResult, indexStats);
+  await addDeliverable(orderId, 'report', `AI Search Submission Report - ${domain}`, report, 'html');
+  steps.push('Deliverable report generated');
 
   // Step 6: Generate AI Submissions CSV
   const aiCsvHeaders = ['Engine', 'Method', 'Status', 'Platform', 'Visible'];
@@ -620,8 +621,15 @@ async function fulfillDripFeed(orderId: string, userId: string, domain: string, 
   steps.push(`First batch: ${firstBatch.succeeded} succeeded, ${firstBatch.failed} failed`);
   await updateOrderStatus(orderId, 'processing', 50);
 
-  // Generate campaign report
-  const report = generateDripFeedReport(domain, tier, campaignResult, firstBatch);
+  // Run Google index verification
+  const { verifyGoogleIndex: verifyGI3, getIndexStats: getIS3 } = await import('./indexVerificationService');
+  const googleResult = await verifyGI3(project.id, 20);
+  steps.push(`Google index check: ${googleResult.indexed} indexed`);
+  await updateOrderStatus(orderId, 'processing', 60);
+
+  // Generate campaign report with index stats
+  const indexStats = await getIS3(project.id);
+  const report = generateDripFeedReport(domain, tier, campaignResult, firstBatch, indexStats);
   await addDeliverable(orderId, 'report', `Drip-Feed Campaign Report - ${domain}`, report, 'html');
   steps.push('Campaign report generated');
 
@@ -1059,7 +1067,8 @@ function generateAISearchReport(
   domain: string, tier: GigTier,
   submitResult: { results: Array<{ engine: string; status: string; method: string }> },
   visibility: { checks: Array<{ platform: string; found: boolean; url: string }> },
-  blResult: { submitted: number; errors: string[] }
+  blResult: { submitted: number; errors: string[] },
+  indexStats: IndexStatsForReport | null = null
 ): string {
   const found = visibility.checks.filter(c => c.found).length;
   return `${reportHeader('AI Search Engine Submission Report', domain, tier)}
@@ -1096,6 +1105,8 @@ ${visibility.checks.map(c => `<tr><td>${c.platform}</td><td><span class="badge $
   ${tier.name === 'premium' ? '<li>Full GEO/AEO strategy implementation</li>' : ''}
 </ul>
 </div>
+
+${generateIndexSection(indexStats)}
 
 ${reportFooter()}`;
 }
@@ -1156,7 +1167,8 @@ ${reportFooter()}`;
 function generateDripFeedReport(
   domain: string, tier: GigTier,
   campaignResult: { campaignId: string; totalEndpoints: number; estimatedDays: number },
-  firstBatch: { succeeded: number; failed: number }
+  firstBatch: { succeeded: number; failed: number },
+  indexStats: IndexStatsForReport | null = null
 ): string {
   return `${reportHeader('Drip-Feed Campaign Report', domain, tier)}
 <div class="stat-grid">
@@ -1187,6 +1199,8 @@ function generateDripFeedReport(
   <li>The campaign pauses automatically if error rates exceed 30%</li>
 </ol>
 </div>
+
+${generateIndexSection(indexStats)}
 
 ${reportFooter()}`;
 }
