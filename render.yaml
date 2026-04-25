@@ -1,0 +1,112 @@
+services:
+  - type: web
+    name: listeverywhere-frontend
+    runtime: node
+    plan: starter
+    buildCommand: cd frontend && npm install --include=dev && npm run build
+    startCommand: cd frontend && npm start
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+      - key: NODE_ENV
+        value: production
+
+  - type: web
+    name: listeverywhere-api
+    runtime: node
+    plan: standard
+    buildCommand: cd backend && npm install --include=dev && npm run build
+    startCommand: cd backend && npm start
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: listeverywhere-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: listeverywhere-redis
+          property: connectionString
+      - key: FIRECRAWL_API_KEY
+        sync: false
+      - key: AI_API_KEY
+        sync: false
+      - key: AI_API_BASE_URL
+        value: https://api.pagegrid.in
+      - key: AI_MODEL
+        value: claude-opus-4-6
+      - key: JWT_SECRET
+        generateValue: true
+      - key: NODE_ENV
+        value: production
+      - key: FRONTEND_URL
+        sync: false
+      - key: PORT
+        value: "3001"
+
+  - type: worker
+    name: listeverywhere-workers
+    runtime: node
+    plan: standard
+    buildCommand: cd backend && npm install --include=dev && npm run build
+    startCommand: cd backend && npm run workers
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: listeverywhere-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: listeverywhere-redis
+          property: connectionString
+      - key: FIRECRAWL_API_KEY
+        sync: false
+      - key: AI_API_KEY
+        sync: false
+      - key: AI_API_BASE_URL
+        value: https://api.pagegrid.in
+      - key: AI_MODEL
+        value: claude-opus-4-6
+      - key: NODE_ENV
+        value: production
+
+  - type: cron
+    name: listeverywhere-cron
+    runtime: node
+    plan: starter
+    buildCommand: cd backend && npm install --include=dev && npm run build
+    startCommand: cd backend && npm run cron
+    schedule: "0 3 * * 1"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: listeverywhere-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: listeverywhere-redis
+          property: connectionString
+      - key: FIRECRAWL_API_KEY
+        sync: false
+      - key: AI_API_KEY
+        sync: false
+      - key: AI_API_BASE_URL
+        value: https://api.pagegrid.in
+      - key: AI_MODEL
+        value: claude-opus-4-6
+      - key: NODE_ENV
+        value: production
+
+  - type: redis
+    name: listeverywhere-redis
+    plan: free
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
+
+databases:
+  - name: listeverywhere-db
+    plan: free
+    databaseName: listeverywhere
+    user: listeverywhere
