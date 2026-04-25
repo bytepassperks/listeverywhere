@@ -330,6 +330,49 @@ CREATE INDEX IF NOT EXISTS idx_backlink_results_project_id ON backlink_results(p
 CREATE INDEX IF NOT EXISTS idx_backlink_results_status ON backlink_results(status);
 CREATE INDEX IF NOT EXISTS idx_indexer_activity_log_project_id ON indexer_activity_log(project_id);
 
+-- ============================================
+-- GIGS MODULE TABLES
+-- ============================================
+
+-- Gig Orders (tracks customer orders for each gig/tier)
+CREATE TABLE IF NOT EXISTS gig_orders (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  gig_id VARCHAR(100) NOT NULL,
+  tier VARCHAR(20) NOT NULL CHECK (tier IN ('basic', 'standard', 'premium')),
+  customer_name VARCHAR(255) NOT NULL,
+  customer_email VARCHAR(255) NOT NULL,
+  target_domain VARCHAR(500) NOT NULL,
+  target_url TEXT,
+  notes TEXT,
+  fiverr_order_id VARCHAR(100),
+  price DECIMAL(10,2) NOT NULL,
+  delivery_days INTEGER NOT NULL,
+  status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'cancelled')),
+  progress_pct INTEGER DEFAULT 0,
+  metadata JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  completed_at TIMESTAMP WITH TIME ZONE
+);
+
+-- Gig Deliverables (reports, CSVs, files generated for each order)
+CREATE TABLE IF NOT EXISTS gig_deliverables (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id UUID NOT NULL REFERENCES gig_orders(id) ON DELETE CASCADE,
+  type VARCHAR(50) NOT NULL,
+  title VARCHAR(500) NOT NULL,
+  content TEXT NOT NULL,
+  format VARCHAR(20) DEFAULT 'text',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Gig indexes
+CREATE INDEX IF NOT EXISTS idx_gig_orders_user_id ON gig_orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_gig_orders_gig_id ON gig_orders(gig_id);
+CREATE INDEX IF NOT EXISTS idx_gig_orders_status ON gig_orders(status);
+CREATE INDEX IF NOT EXISTS idx_gig_deliverables_order_id ON gig_deliverables(order_id);
+
 `;
 
 // Backlink enhancement columns — run separately after server starts to avoid blocking startup
@@ -364,7 +407,7 @@ export async function runMigrations() {
     // Check if core tables already exist (from previous successful deploys)
     // If so, skip the heavy migration to avoid locking the DB and blocking login
     const check = await pool.query(
-      "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'indexer_activity_log')"
+      "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'gig_orders')"
     );
     if (check.rows[0].exists) {
       console.log('All tables already exist — skipping base migration.');

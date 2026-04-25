@@ -539,6 +539,60 @@ class ApiClient {
       indexed: number; notIndexed: number; unchecked: number;
     }>(`/api/indexer/projects/${projectId}/backlinks/index-stats`);
   }
+
+  // ==========================================
+  // GIGS MODULE
+  // ==========================================
+
+  async getGigs() {
+    return this.request<{ gigs: GigDefinition[] }>('/api/gigs');
+  }
+
+  async getGig(gigId: string) {
+    return this.request<{ gig: GigDefinition }>(`/api/gigs/${gigId}`);
+  }
+
+  async getGigStats() {
+    return this.request<GigStatsOverview>('/api/gigs/stats/overview');
+  }
+
+  async getGigOrders(gigId?: string) {
+    const params = gigId ? `?gig_id=${gigId}` : '';
+    return this.request<{ orders: GigOrder[] }>(`/api/gigs/orders${params}`);
+  }
+
+  async getGigOrder(orderId: string) {
+    return this.request<{ order: GigOrder; deliverables: GigDeliverable[] }>(`/api/gigs/orders/${orderId}`);
+  }
+
+  async createGigOrder(data: {
+    gigId: string; tier: string; customerName: string;
+    customerEmail: string; targetDomain: string;
+    targetUrl?: string; notes?: string; fiverrOrderId?: string;
+  }) {
+    return this.request<{ order: GigOrder; message: string }>('/api/gigs/orders', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async fulfillGigOrder(orderId: string) {
+    return this.request<{ message: string; steps: string[] }>(`/api/gigs/orders/${orderId}/fulfill`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async updateGigOrderStatus(orderId: string, status: string) {
+    return this.request<{ message: string }>(`/api/gigs/orders/${orderId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  async getGigDeliverables(orderId: string) {
+    return this.request<{ deliverables: GigDeliverable[] }>(`/api/gigs/orders/${orderId}/deliverables`);
+  }
 }
 
 export const api = new ApiClient();
@@ -845,4 +899,70 @@ export interface EndpointStats {
   byCategory: Array<{ category: string; count: string }>;
   recentDiscoveries: Array<{ id: string; discovered_count: number; verified_count: number; added_count: number; created_at: string }>;
   dailyGrowth: Array<{ day: string; endpoints_added: string }>;
+}
+
+// ==========================================
+// GIGS INTERFACES
+// ==========================================
+
+export interface GigTier {
+  name: string;
+  label: string;
+  price: number;
+  deliveryDays: number;
+  description: string;
+  features: string[];
+  limits: Record<string, number>;
+}
+
+export interface GigDefinition {
+  id: string;
+  title: string;
+  shortTitle: string;
+  description: string;
+  icon: string;
+  category: string;
+  fiverrUrl: string | null;
+  status: 'active' | 'coming_soon';
+  tiers: { basic: GigTier; standard: GigTier; premium: GigTier };
+}
+
+export interface GigOrder {
+  id: string;
+  user_id: string;
+  gig_id: string;
+  tier: string;
+  customer_name: string;
+  customer_email: string;
+  target_domain: string;
+  target_url: string;
+  notes: string;
+  fiverr_order_id: string | null;
+  price: number;
+  delivery_days: number;
+  status: string;
+  progress_pct: number;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+}
+
+export interface GigDeliverable {
+  id: string;
+  order_id: string;
+  type: string;
+  title: string;
+  content: string;
+  format: string;
+  created_at: string;
+}
+
+export interface GigStatsOverview {
+  totalOrders: number;
+  completed: number;
+  processing: number;
+  pending: number;
+  failed: number;
+  totalRevenue: number;
 }
