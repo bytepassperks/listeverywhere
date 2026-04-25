@@ -12,6 +12,7 @@ const navItems = [
   { href: '/dashboard/indexer', label: 'Indexer', icon: '🔍' },
   { href: '/dashboard/bulk', label: 'Bulk Upload', icon: '📦' },
   { href: '/dashboard/demo-video', label: 'Demo Video', icon: '🎬' },
+  { href: '/dashboard/gigs', label: 'Gigs', icon: '💼' },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
