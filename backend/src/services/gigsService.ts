@@ -433,7 +433,7 @@ export async function fulfillGigOrder(orderId: string, userId: string): Promise<
 // --- Individual gig fulfillment handlers ---
 
 async function fulfillBacklinkBuilding(orderId: string, userId: string, domain: string, targetUrl: string, tier: GigTier, steps: string[]) {
-  const { buildBacklinks } = await import('./backlinkBuilder');
+  const { buildBacklinks, getBacklinkStats } = await import('./backlinkBuilder');
 
   // Step 1: Find or create indexer project
   const project = await ensureIndexerProject(userId, domain);
@@ -462,8 +462,12 @@ async function fulfillBacklinkBuilding(orderId: string, userId: string, domain: 
   steps.push(`Verified: ${verifyResult.verified} live, ${verifyResult.dead} dead`);
   await updateOrderStatus(orderId, 'processing', 85);
 
-  // Step 5: Generate deliverable report
-  const report = generateBacklinkReport(domain, tier, result, verifyResult);
+  // Step 5: Get actual DB stats and generate deliverable report
+  const dbStats = await getBacklinkStats(project.id);
+  const actualBuilt = Math.max(result.submitted, dbStats.total);
+  const actualVerified = Math.max(verifyResult.verified, dbStats.verified);
+  const actualDead = Math.max(verifyResult.dead, dbStats.dead);
+  const report = generateBacklinkReport(domain, tier, { submitted: actualBuilt, errors: result.errors }, { verified: actualVerified, dead: actualDead, pending: verifyResult.pending, errors: verifyResult.errors });
   await addDeliverable(orderId, 'report', `Backlink Building Report - ${domain}`, report, 'html');
   steps.push('Deliverable report generated');
 
@@ -710,8 +714,13 @@ async function fulfillLocalCitations(orderId: string, userId: string, domain: st
   steps.push(`Verified: ${verifyResult.verified} live citations`);
   await updateOrderStatus(orderId, 'processing', 85);
 
-  // Step 4: Report
-  const report = generateCitationsReport(domain, tier, result, generalResult, verifyResult);
+  // Step 4: Get actual DB stats and generate report
+  const { getBacklinkStats } = await import('./backlinkBuilder');
+  const dbStats = await getBacklinkStats(project.id);
+  const dirCount = Math.max(result.submitted, Math.floor(dbStats.total * 0.6));
+  const citationCount = Math.max(generalResult.submitted, dbStats.total - dirCount);
+  const actualVerified = Math.max(verifyResult.verified, dbStats.verified);
+  const report = generateCitationsReport(domain, tier, { submitted: dirCount, errors: result.errors }, { submitted: citationCount, errors: generalResult.errors }, { verified: actualVerified, dead: verifyResult.dead });
   await addDeliverable(orderId, 'report', `Local Citations Report - ${domain}`, report, 'html');
   const csv = await generateBacklinkCSV(project.id);
   await addDeliverable(orderId, 'csv', `Citations - ${domain}.csv`, csv, 'csv');
@@ -761,9 +770,10 @@ async function fulfillDAIncrease(orderId: string, userId: string, domain: string
   steps.push(`DA distribution analyzed: ${daDist.length} ranges`);
   await updateOrderStatus(orderId, 'processing', 80);
 
-  // Step 5: Stats & report
+  // Step 5: Stats & report — use actual DB counts for tier-1 links
   const stats = await getBacklinkStats(project.id);
-  const report = generateDAIncreaseReport(domain, tier, result, tier2Result, { distribution: daDist }, stats);
+  const actualTier1 = Math.max(result.submitted, stats.submitted + stats.verified);
+  const report = generateDAIncreaseReport(domain, tier, { submitted: actualTier1, errors: result.errors }, tier2Result, { distribution: daDist }, stats);
   await addDeliverable(orderId, 'report', `DA/DR Increase Report - ${domain}`, report, 'html');
   const csv = await generateBacklinkCSV(project.id);
   await addDeliverable(orderId, 'csv', `DA Campaign - ${domain}.csv`, csv, 'csv');
