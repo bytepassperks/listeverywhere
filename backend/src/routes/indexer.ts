@@ -551,7 +551,7 @@ export async function indexerRoutes(app: FastifyInstance) {
     return { message: 'Backlink IndexNow submission started in background', processing: true };
   });
 
-  // Check if backlink URLs are indexed by Google
+  // Check if backlink URLs are indexed by Google (REAL verification via Google cache/site: queries)
   app.post('/api/indexer/projects/:id/backlinks/check-indexed', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
     const { limit } = request.body as { limit?: number };
@@ -561,34 +561,36 @@ export async function indexerRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' });
     }
 
-    // Run synchronously since the user wants to see results
-    const result = await checkBacklinkIndexStatus(id, limit || 20);
-    return { message: 'Backlink index check complete', ...result };
+    // Use REAL Google index verification (not just HTTP status checks)
+    const { verifyGoogleIndex } = await import('../services/indexVerificationService');
+    const result = await verifyGoogleIndex(id, limit || 20);
+    return { message: 'Real Google index verification complete', ...result };
   });
 
-  // Get backlink indexation stats
+  // Get backlink indexation stats (includes real Google index verification data)
   app.get('/api/indexer/projects/:id/backlinks/index-stats', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
 
-    const stats = await pool.query(
-      `SELECT
-         COUNT(*) FILTER (WHERE status IN ('submitted', 'verified')) as total_backlinks,
-         COUNT(*) FILTER (WHERE indexnow_submitted = true) as indexnow_submitted,
-         COUNT(*) FILTER (WHERE index_status = 'indexed') as indexed,
-         COUNT(*) FILTER (WHERE index_status = 'not_indexed') as not_indexed,
-         COUNT(*) FILTER (WHERE index_status = 'unknown' OR index_status IS NULL) as unchecked
+    const { getIndexStats } = await import('../services/indexVerificationService');
+    const indexStats = await getIndexStats(id);
+
+    const indexnowStats = await pool.query(
+      `SELECT COUNT(*) FILTER (WHERE indexnow_submitted = true) as indexnow_submitted
        FROM backlink_results
        WHERE project_id = $1 AND status IN ('submitted', 'verified')`,
       [id]
     );
 
-    const row = stats.rows[0];
     return {
-      totalBacklinks: parseInt(row.total_backlinks),
-      indexnowSubmitted: parseInt(row.indexnow_submitted),
-      indexed: parseInt(row.indexed),
-      notIndexed: parseInt(row.not_indexed),
-      unchecked: parseInt(row.unchecked),
+      totalBacklinks: indexStats.totalBacklinks,
+      indexableBacklinks: indexStats.indexableBacklinks,
+      indexnowSubmitted: parseInt(indexnowStats.rows[0].indexnow_submitted),
+      googleIndexed: indexStats.googleIndexed,
+      notIndexed: indexStats.notIndexed,
+      unchecked: indexStats.unchecked,
+      indexRate: indexStats.indexRate,
+      byCategory: indexStats.byCategory,
+      topIndexedUrls: indexStats.topIndexedUrls,
     };
   });
 
