@@ -76,7 +76,7 @@ const LLM_OPTIMIZATION_ENDPOINTS = [
   { name: 'Reddit Search', url_template: 'https://www.reddit.com/search/?q={DOMAIN}', category: 'llm_indexing' },
 ];
 
-export async function submitToLLMEngines(projectId: string): Promise<{
+export async function submitToLLMEngines(projectId: string, maxPlatforms?: number): Promise<{
   results: Array<{ engine: string; status: string; method: string }>;
 }> {
   const { rows: [project] } = await pool.query(
@@ -89,8 +89,13 @@ export async function submitToLLMEngines(projectId: string): Promise<{
   const url = `https://${domain}`;
   const results: Array<{ engine: string; status: string; method: string }> = [];
 
+  // Tier-gate: only submit to the number of platforms allowed by the tier
+  const endpointsToUse = maxPlatforms
+    ? LLM_OPTIMIZATION_ENDPOINTS.slice(0, maxPlatforms)
+    : LLM_OPTIMIZATION_ENDPOINTS;
+
   // Submit to LLM-relevant endpoints
-  for (const endpoint of LLM_OPTIMIZATION_ENDPOINTS) {
+  for (const endpoint of endpointsToUse) {
     try {
       const targetUrl = endpoint.url_template
         .replace(/{DOMAIN}/g, domain)

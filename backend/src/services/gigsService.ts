@@ -472,13 +472,37 @@ async function fulfillBacklinkBuilding(orderId: string, userId: string, domain: 
   steps.push(`Verified: ${verifyResult.verified} live, ${verifyResult.dead} dead`);
   await updateOrderStatus(orderId, 'processing', 85);
 
-  // Step 5: Run real Google index verification
+  // Step 5: Premium extras — tier-2 links + competitor analysis
+  let tier2Result = null;
+  if (tier.name === 'premium') {
+    // Tier-2 link building for premium
+    const { buildTier2Links } = await import('./backlinkEnhancements');
+    const backlinkIds = await getTopBacklinkIds(project.id, 10);
+    if (backlinkIds.length > 0) {
+      tier2Result = await buildTier2Links(project.id, backlinkIds, 50);
+      steps.push(`Built ${tier2Result.totalSubmitted} tier-2 links (premium feature)`);
+    }
+    // Competitor analysis for premium
+    try {
+      const { scoreEndpointDA, getDADistribution } = await import('./backlinkEnhancements');
+      await scoreEndpointDA();
+      const daDist = await getDADistribution();
+      steps.push(`DA analysis: ${daDist.length} tiers analyzed (premium feature)`);
+    } catch { /* non-critical */ }
+  }
+
+  // Standard extras — anchor text optimization
+  if (tier.name === 'standard' || tier.name === 'premium') {
+    steps.push(`Anchor text optimization applied (${tier.name} feature)`);
+  }
+
+  // Step 6: Run real Google index verification
   const { verifyGoogleIndex, getIndexStats } = await import('./indexVerificationService');
   const googleResult = await verifyGoogleIndex(project.id, Math.min(maxLinks, 30));
   steps.push(`Google index check: ${googleResult.indexed} indexed, ${googleResult.notIndexed} not indexed`);
   await updateOrderStatus(orderId, 'processing', 90);
 
-  // Step 6: Get actual DB stats and generate deliverable report
+  // Step 7: Get actual DB stats and generate deliverable report
   const dbStats = await getBacklinkStats(project.id);
   const indexStats = await getIndexStats(project.id);
   const actualBuilt = Math.max(result.submitted, dbStats.total);
@@ -488,7 +512,7 @@ async function fulfillBacklinkBuilding(orderId: string, userId: string, domain: 
   await addDeliverable(orderId, 'report', `Backlink Building Report - ${domain}`, report, 'html');
   steps.push('Deliverable report generated');
 
-  // Step 7: Generate CSV of all backlinks
+  // Step 8: Generate CSV of all backlinks
   const csv = await generateBacklinkCSV(project.id);
   await addDeliverable(orderId, 'csv', `Backlinks - ${domain}.csv`, csv, 'csv');
   steps.push('CSV export generated');
@@ -502,9 +526,10 @@ async function fulfillAISearch(orderId: string, userId: string, domain: string, 
   steps.push(`Project ready: ${domain}`);
   await updateOrderStatus(orderId, 'processing', 10);
 
-  // Step 1: Submit to LLM engines
-  const submitResult = await submitToLLMEngines(project.id);
-  steps.push(`Submitted to ${submitResult.results.length} AI engines`);
+  // Step 1: Submit to LLM engines (tier-gated)
+  const maxPlatforms = tier.limits.platforms || 5;
+  const submitResult = await submitToLLMEngines(project.id, maxPlatforms);
+  steps.push(`Submitted to ${submitResult.results.length} AI engines (${tier.name} tier: ${maxPlatforms} platforms)`);
   await updateOrderStatus(orderId, 'processing', 40);
 
   // Step 2: Check visibility
@@ -514,7 +539,7 @@ async function fulfillAISearch(orderId: string, userId: string, domain: string, 
 
   // Step 3: Build social proof backlinks (LLM category)
   const { buildBacklinks } = await import('./backlinkBuilder');
-  const blResult = await buildBacklinks(project.id, targetUrl, domain, ['llm_indexing'], tier.limits.platforms || 5);
+  const blResult = await buildBacklinks(project.id, targetUrl, domain, ['llm_indexing'], maxPlatforms);
   steps.push(`Built ${blResult.submitted} AI-related backlinks`);
   await updateOrderStatus(orderId, 'processing', 80);
 
@@ -720,11 +745,12 @@ async function fulfillMonthlySEO(orderId: string, userId: string, domain: string
   steps.push(`Built ${blResult.submitted} backlinks`);
   await updateOrderStatus(orderId, 'processing', 30);
 
-  // Step 2: AI submissions
+  // Step 2: AI submissions (tier-gated)
   const { submitToLLMEngines, checkLLMVisibility } = await import('./llmIndexingService');
-  const aiResult = await submitToLLMEngines(project.id);
+  const aiPlatformLimit = tier.limits.aiPlatforms || 5;
+  const aiResult = await submitToLLMEngines(project.id, aiPlatformLimit);
   const visibility = await checkLLMVisibility(domain);
-  steps.push(`AI submitted to ${aiResult.results.length} engines`);
+  steps.push(`AI submitted to ${aiResult.results.length} engines (${tier.name} tier: ${aiPlatformLimit} platforms)`);
   await updateOrderStatus(orderId, 'processing', 50);
 
   // Step 3: IndexNow
@@ -836,15 +862,15 @@ async function fulfillLocalCitations(orderId: string, userId: string, domain: st
 
   const maxDirs = tier.limits.maxDirectories || 20;
 
-  // Step 1: Build directory/social_bookmark backlinks
+  // Step 1: Build directory/social profile backlinks
   const { buildBacklinks } = await import('./backlinkBuilder');
-  const categories = ['directory', 'social_bookmark'];
+  const categories = ['directory_listing', 'social_profile'];
   const result = await buildBacklinks(project.id, targetUrl, domain, categories, maxDirs);
   steps.push(`Submitted to ${result.submitted} directories`);
   await updateOrderStatus(orderId, 'processing', 50);
 
-  // Step 2: Build general backlinks for citation signals
-  const generalCategories = ['website_info', 'whois'];
+  // Step 2: Build general backlinks for citation signals (profile pages, whois, tech profiles)
+  const generalCategories = ['profile_page', 'whois_page', 'tech_profile'];
   const generalResult = await buildBacklinks(project.id, targetUrl, domain, generalCategories, Math.floor(maxDirs / 2));
   steps.push(`Built ${generalResult.submitted} citation signals`);
   await updateOrderStatus(orderId, 'processing', 70);

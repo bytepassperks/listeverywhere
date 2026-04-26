@@ -532,10 +532,10 @@ export async function buildTier2Links(
     [projectId, tier1BacklinkIds]
   );
 
-  // Get social bookmark and directory endpoints for Tier 2
+  // Get social profile, directory listing, and ping endpoints for Tier 2
   const tier2Endpoints = await pool.query(
     `SELECT id, name, url_template, category FROM backlink_endpoints
-     WHERE active = true AND category IN ('social_bookmark', 'directory', 'ping_service', 'web_archive')
+     WHERE active = true AND category IN ('social_profile', 'directory_listing', 'ping_notify', 'archive_page')
      ORDER BY COALESCE(domain_authority, 0) DESC
      LIMIT $1`,
     [maxPerBacklink]
