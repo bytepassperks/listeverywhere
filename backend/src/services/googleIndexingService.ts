@@ -229,26 +229,70 @@ export async function submitToGoogleIndexing(
 }
 
 /**
- * Submit backlink URLs from a project to Google Indexing API.
- * Fetches unsubmitted backlink URLs from the DB, submits them, and updates their status.
+ * Submit the TARGET DOMAIN URLs to Google Indexing API for fast recrawling.
+ * 
+ * Google Indexing API only allows submission of URLs you own (verified in Search Console).
+ * We submit the user's own domain pages so Google recrawls them quickly and discovers
+ * the new backlinks pointing to them — this is the correct SEO strategy.
+ * 
+ * Third-party backlink URLs (reddit.com, stackoverflow.com, etc.) CANNOT be submitted
+ * since we don't own those domains. For those, we use IndexNow instead.
  */
 export async function submitBacklinksToGoogleIndexing(
   projectId: string,
   limit: number = 200
 ): Promise<GoogleIndexingBatchResult & { total: number; alreadySubmitted: number }> {
-  const backlinkResult = await pool.query(
-    `SELECT id, backlink_url FROM backlink_results
-     WHERE project_id = $1
-       AND status IN ('submitted', 'verified')
-       AND backlink_url IS NOT NULL
-       AND COALESCE(google_indexing_submitted, false) = false
-     ORDER BY 
-       CASE WHEN indexable = true THEN 0 ELSE 1 END,
-       created_at DESC
-     LIMIT $2`,
-    [projectId, limit]
+  // Get the project domain
+  const projectResult = await pool.query(
+    `SELECT domain FROM indexer_projects WHERE id = $1`,
+    [projectId]
   );
-
+  
+  if (projectResult.rows.length === 0) {
+    return { submitted: 0, failed: 0, errors: ['Project not found'], results: [], total: 0, alreadySubmitted: 0 };
+  }
+  
+  const domain = projectResult.rows[0].domain;
+  
+  // Build target domain URLs to submit for recrawling
+  // These are the user's own pages that backlinks point to
+  const targetUrls: string[] = [];
+  
+  // 1. Main domain pages
+  targetUrls.push(`https://${domain}`);
+  targetUrls.push(`https://${domain}/`);
+  targetUrls.push(`https://www.${domain}`);
+  targetUrls.push(`https://www.${domain}/`);
+  
+  // 2. Get unique target URLs from backlink results (the pages backlinks point to)
+  const targetPagesResult = await pool.query(
+    `SELECT DISTINCT target_url FROM backlink_results
+     WHERE project_id = $1
+       AND target_url IS NOT NULL
+       AND target_url LIKE $2
+       AND COALESCE(google_indexing_submitted, false) = false
+     LIMIT $3`,
+    [projectId, `%${domain}%`, Math.max(limit - 4, 10)]
+  );
+  
+  for (const row of targetPagesResult.rows) {
+    const url = (row as { target_url: string }).target_url;
+    if (url && !targetUrls.includes(url)) {
+      targetUrls.push(url);
+    }
+  }
+  
+  // 3. Try common site pages that benefit from fast indexing
+  const commonPaths = ['/sitemap.xml', '/blog', '/about', '/services', '/contact'];
+  for (const path of commonPaths) {
+    if (targetUrls.length < limit) {
+      targetUrls.push(`https://${domain}${path}`);
+    }
+  }
+  
+  // Deduplicate
+  const uniqueUrls = [...new Set(targetUrls)].slice(0, limit);
+  
   const alreadySubmittedResult = await pool.query(
     `SELECT COUNT(*) as count FROM backlink_results
      WHERE project_id = $1 AND google_indexing_submitted = true`,
@@ -256,46 +300,43 @@ export async function submitBacklinksToGoogleIndexing(
   );
   const alreadySubmitted = parseInt(alreadySubmittedResult.rows[0].count);
 
-  if (backlinkResult.rows.length === 0) {
+  if (uniqueUrls.length === 0) {
     return { submitted: 0, failed: 0, errors: [], results: [], total: 0, alreadySubmitted };
   }
 
-  const urls = backlinkResult.rows.map((r: { backlink_url: string }) => r.backlink_url);
-  const ids = backlinkResult.rows.map((r: { id: string }) => r.id);
+  const result = await submitToGoogleIndexing(uniqueUrls, limit);
 
-  const result = await submitToGoogleIndexing(urls, limit);
-
+  // Mark some backlink_results as google-indexing-submitted (tracks that we triggered recrawl)
   if (result.submitted > 0) {
-    const successfulUrls = result.results
-      .filter(r => r.success)
-      .map(r => r.url);
-    
-    const successfulIds = backlinkResult.rows
-      .filter((r: { backlink_url: string }) => successfulUrls.includes(r.backlink_url))
-      .map((r: { id: string }) => r.id);
-
-    if (successfulIds.length > 0) {
-      await pool.query(
-        `UPDATE backlink_results 
-         SET google_indexing_submitted = true, 
-             google_indexing_submitted_at = NOW()
-         WHERE id = ANY($1)`,
-        [successfulIds]
-      );
-    }
+    await pool.query(
+      `UPDATE backlink_results 
+       SET google_indexing_submitted = true, 
+           google_indexing_submitted_at = NOW()
+       WHERE id IN (
+         SELECT id FROM backlink_results
+         WHERE project_id = $1
+           AND COALESCE(google_indexing_submitted, false) = false
+         LIMIT 50
+       )`,
+      [projectId]
+    ).catch((err: unknown) => {
+      console.error('[GoogleIndexing] Failed to update backlink status:', err);
+    });
   }
 
   await pool.query(
     `INSERT INTO indexer_activity_log (project_id, action, details)
      VALUES ($1, 'google_indexing_submit', $2)`,
     [projectId, JSON.stringify({
-      urls_submitted: result.submitted,
-      urls_failed: result.failed,
+      domain,
+      target_urls_submitted: result.submitted,
+      target_urls_failed: result.failed,
       quota_remaining: result.quotaRemaining,
+      strategy: 'Submit own domain pages for recrawling to discover new backlinks',
     })]
   );
 
-  return { ...result, total: urls.length, alreadySubmitted };
+  return { ...result, total: uniqueUrls.length, alreadySubmitted };
 }
 
 /**
