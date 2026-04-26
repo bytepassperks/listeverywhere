@@ -864,23 +864,29 @@ async function fulfillLocalCitations(orderId: string, userId: string, domain: st
 
   const maxDirs = tier.limits.maxDirectories || 20;
 
-  // Step 1: Build persistent citation pages (review sites, domain profiles, trust reports)
+  // Step 1: Build persistent citation pages across ALL categories
+  // Every endpoint in our DB creates a real persistent page per domain
   const { buildBacklinks } = await import('./backlinkBuilder');
-  const citationCategories = ['local_citation'];
-  const result = await buildBacklinks(project.id, targetUrl, domain, citationCategories, maxDirs);
-  steps.push(`Created ${result.submitted} persistent citation pages (review sites, domain profiles, trust reports)`);
-  await updateOrderStatus(orderId, 'processing', 40);
+  const allPersistentCategories = [
+    'local_citation',    // TrustPilot, Sitejabber, ScamAdviser, Brownbook
+    'profile_page',      // BuiltWith, HypeStat, StatsCrop, SimilarWeb, Host.io
+    'whois_page',        // Who.is, DomainTools, Whois.com, ICANN, Robtex
+    'tech_profile',      // W3Techs, Wappalyzer, Netcraft
+    'seo_report',        // Seobility, SEOptimer, Nibbler, WooRank
+    'security_report',   // VirusTotal, URLVoid, Sucuri, SSL Labs, Mozilla Observatory
+    'speed_report',      // PageSpeed, GTmetrix, IsItDown
+    'dns_report',        // DNSlytics, ViewDNS, MXToolbox
+    'directory_listing', // Curlie, BOTW, Jasmine, Hotfrog
+  ];
+  const result = await buildBacklinks(project.id, targetUrl, domain, allPersistentCategories, maxDirs);
+  const citationCount = result.submitted;
+  steps.push(`Created ${citationCount} persistent citation pages across ${allPersistentCategories.length} categories`);
+  await updateOrderStatus(orderId, 'processing', 50);
 
-  // Step 2: Build additional persistent profiles (WHOIS, tech profiles, SEO reports)
-  const profileCategories = ['whois_page', 'tech_profile', 'seo_report', 'profile_page'];
-  const profileResult = await buildBacklinks(project.id, targetUrl, domain, profileCategories, Math.floor(maxDirs / 2));
-  steps.push(`Created ${profileResult.submitted} domain profile pages (WHOIS, tech, SEO audit)`);
-  await updateOrderStatus(orderId, 'processing', 60);
-
-  // Step 3: Build directory listing citations
-  const dirCategories = ['directory_listing'];
-  const dirResult = await buildBacklinks(project.id, targetUrl, domain, dirCategories, Math.floor(maxDirs / 4));
-  steps.push(`Submitted to ${dirResult.submitted} web directories`);
+  // Step 2: Build additional persistent profiles from remaining categories
+  const extraCategories = ['certificate_page', 'archive_page', 'validator'];
+  const extraResult = await buildBacklinks(project.id, targetUrl, domain, extraCategories, Math.floor(maxDirs / 4));
+  steps.push(`Created ${extraResult.submitted} additional persistent profiles (certs, archives, validators)`);
   await updateOrderStatus(orderId, 'processing', 70);
 
   // Step 3: Verify
@@ -908,9 +914,9 @@ async function fulfillLocalCitations(orderId: string, userId: string, domain: st
   const { getBacklinkStats } = await import('./backlinkBuilder');
   const dbStats = await getBacklinkStats(project.id);
   const indexStats = await getIStats(project.id);
-  const totalCitations = result.submitted + profileResult.submitted + dirResult.submitted;
+  const totalCitations = result.submitted + extraResult.submitted;
   const actualVerified = Math.max(verifyResult.verified, dbStats.verified);
-  const report = generateCitationsReport(domain, tier, { submitted: totalCitations, errors: result.errors }, { submitted: profileResult.submitted, errors: profileResult.errors }, { verified: actualVerified, dead: verifyResult.dead }, indexStats);
+  const report = generateCitationsReport(domain, tier, { submitted: totalCitations, errors: result.errors }, { submitted: extraResult.submitted, errors: extraResult.errors }, { verified: actualVerified, dead: verifyResult.dead }, indexStats);
   await addDeliverable(orderId, 'report', `Local Citations Report - ${domain}`, report, 'html');
   const csv = await generateBacklinkCSV(project.id);
   await addDeliverable(orderId, 'csv', `Citations - ${domain}.csv`, csv, 'csv');

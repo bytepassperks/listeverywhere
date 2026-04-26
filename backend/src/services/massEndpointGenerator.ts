@@ -296,43 +296,15 @@ export function generateMassEndpoints(): EndpointEntry[] {
   add('Jasmine Directory', 'https://www.jasminedirectory.com/search?q={DOMAIN}', 'directory_listing', 3, true, 58);
 
   // =============================================
-  // LOCAL CITATIONS — Persistent profile/review pages ONLY
-  // Every URL below creates a unique persistent page per domain
-  // NO search result pages — these are all real indexable pages
+  // LOCAL CITATIONS — Review/trust pages that are unique to this category
+  // All other persistent pages (WHOIS, tech profiles, SEO reports, security
+  // scans, speed reports, etc.) already exist above in their own categories.
+  // Gig 7 pulls from ALL persistent categories, not just local_citation.
   // =============================================
-
-  // --- Review/Trust Platforms (persistent review page per domain) ---
   add('TrustPilot Review', 'https://www.trustpilot.com/review/{DOMAIN}', 'local_citation', 1, true, 93);
   add('Sitejabber Review', 'https://www.sitejabber.com/reviews/{DOMAIN}', 'local_citation', 1, true, 72);
   add('ScamAdviser Check', 'https://www.scamadviser.com/check-website/{DOMAIN}', 'local_citation', 1, true, 72);
-
-  // --- Domain Profile/Valuation Sites (persistent stats page per domain) ---
-  add('StatsCrop Profile', 'https://www.statscrop.com/www/{DOMAIN}', 'local_citation', 1, true, 52);
-  add('WorthOfWeb Value', 'https://www.worthofweb.com/website-value/{DOMAIN}/', 'local_citation', 1, true, 54);
-  add('SiteWorthTraffic', 'https://www.siteworthtraffic.com/report/{DOMAIN}', 'local_citation', 1, true, 48);
-  add('Host.io Profile', 'https://host.io/{DOMAIN}', 'local_citation', 1, true, 58);
-  add('HypeStat Profile', 'https://hypestat.com/info/{DOMAIN}', 'local_citation', 2, true, 56);
-  add('CuteStat Profile', 'https://www.cutestat.com/{DOMAIN}', 'local_citation', 2, true, 52);
-  add('DomainBigData', 'https://domainbigdata.com/{DOMAIN}', 'local_citation', 2, true, 50);
-  add('SitePrice Value', 'https://www.siteprice.org/website-worth/{DOMAIN}', 'local_citation', 2, true, 46);
-  add('IsItDown Status', 'https://www.isitdownrightnow.com/{DOMAIN}.html', 'local_citation', 2, true, 62);
-
-  // --- SEO Audit/Report Sites (persistent audit page per domain) ---
-  add('SEOptimer Audit', 'https://www.seoptimer.com/{DOMAIN}', 'local_citation', 1, true, 68);
-  add('Nibbler Report', 'https://nibbler.insites.com/en/reports/{DOMAIN}', 'local_citation', 2, true, 56);
-  add('WooRank Teaser', 'https://www.woorank.com/en/teaser/{DOMAIN}', 'local_citation', 2, true, 72);
-
-  // --- Security/Trust Report Sites (persistent report per domain) ---
-  add('Netcraft SiteReport', 'https://sitereport.netcraft.com/?url=https%3A%2F%2F{DOMAIN}', 'local_citation', 1, true, 78);
-  add('SecurityTrails Domain', 'https://securitytrails.com/domain/{DOMAIN}', 'local_citation', 2, true, 72);
-  add('Cloudflare Radar', 'https://radar.cloudflare.com/domains/domain/{DOMAIN}', 'local_citation', 2, true, 92);
-
-  // --- Speed/Performance Report Sites (persistent report per domain) ---
-  add('GTmetrix Report', 'https://gtmetrix.com/?url=https%3A%2F%2F{DOMAIN}', 'local_citation', 2, true, 72);
-
-  // --- Business Profile / Directory Listings (persistent page per domain) ---
   add('Brownbook Business', 'https://www.brownbook.net/businesses/{DOMAIN}/', 'local_citation', 2, true, 56);
-  add('DNSlytics Domain', 'https://dnslytics.com/domain/{DOMAIN}', 'local_citation', 2, true, 58);
 
   console.log(`[EndpointDB v2] Total real indexable endpoints: ${endpoints.length} (${endpoints.filter(e => e.indexable).length} indexable)`);
   return endpoints;
