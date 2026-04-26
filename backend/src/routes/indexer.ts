@@ -477,9 +477,25 @@ export async function indexerRoutes(app: FastifyInstance) {
   // Get backlink stats for project
   app.get('/api/indexer/projects/:id/backlink-stats', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
-
     const stats = await getBacklinkStats(id);
     return stats;
+  });
+
+  // Alias: /backlinks/stats also works
+  app.get('/api/indexer/projects/:id/backlinks/stats', { preHandler: [app.authenticate] }, async (request: FastifyRequest) => {
+    const { id } = request.params as { id: string };
+    return await getBacklinkStats(id);
+  });
+
+  // Alias: /backlinks/build also works
+  app.post('/api/indexer/projects/:id/backlinks/build', { preHandler: [app.authenticate] }, async (request: FastifyRequest) => {
+    const { id } = request.params as { id: string };
+    const { targetUrl, maxEndpoints, categories } = (request.body || {}) as { targetUrl?: string; maxEndpoints?: number; categories?: string[] };
+    const project = await pool.query('SELECT domain FROM indexer_projects WHERE id = $1', [id]);
+    if (project.rows.length === 0) return { error: 'Project not found' };
+    const domain = project.rows[0].domain;
+    const result = await buildBacklinks(id, targetUrl || `https://${domain}`, domain, categories, maxEndpoints || 50);
+    return result;
   });
 
   // Get backlink results for project
@@ -661,6 +677,72 @@ export async function indexerRoutes(app: FastifyInstance) {
     return result;
   });
 
+  // Sitemap validator
+  app.post('/api/indexer/tools/sitemap-validator', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { domain } = (request.body || {}) as { domain?: string };
+    if (!domain) return reply.status(400).send({ error: 'Domain is required' });
+    const cleanDomain = domain.replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/.*$/, '');
+
+    const sitemapUrls = [
+      `https://${cleanDomain}/sitemap.xml`,
+      `https://${cleanDomain}/sitemap_index.xml`,
+      `https://www.${cleanDomain}/sitemap.xml`,
+    ];
+
+    const results = [];
+    for (const url of sitemapUrls) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        const resp = await fetch(url, { signal: controller.signal, headers: { 'User-Agent': 'Mozilla/5.0' } });
+        clearTimeout(timeout);
+        const contentType = resp.headers.get('content-type') || '';
+        const isXml = contentType.includes('xml') || contentType.includes('text');
+        let urlCount = 0;
+        if (resp.ok && isXml) {
+          const body = await resp.text();
+          urlCount = (body.match(/<loc>/g) || []).length;
+        }
+        results.push({ url, status: resp.status, found: resp.ok && isXml, urlCount });
+      } catch {
+        results.push({ url, status: 0, found: false, urlCount: 0 });
+      }
+    }
+
+    const found = results.find(r => r.found);
+    return {
+      domain: cleanDomain,
+      sitemapFound: !!found,
+      sitemapUrl: found?.url || null,
+      urlCount: found?.urlCount || 0,
+      checked: results,
+    };
+  });
+
+  // Verify index for specific URLs
+  app.post('/api/indexer/projects/:id/verify-index', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const { urls } = (request.body || {}) as { urls?: string[] };
+    if (!urls || urls.length === 0) return reply.status(400).send({ error: 'URLs array is required' });
+
+    const results = [];
+    for (const url of urls.slice(0, 20)) {
+      try {
+        const indexResult = await checkGoogleIndex(url);
+        results.push({ url, ...indexResult });
+      } catch (err) {
+        results.push({ url, indexed: false, error: err instanceof Error ? err.message : 'Check failed' });
+      }
+    }
+
+    return {
+      projectId: id,
+      checked: results.length,
+      indexed: results.filter(r => r.indexed).length,
+      results,
+    };
+  });
+
   // ==========================================
   // DASHBOARD STATS
   // ==========================================
@@ -826,7 +908,70 @@ export async function indexerRoutes(app: FastifyInstance) {
     return { message: 'All alerts marked as read' };
   });
 
-  // Get discovery stats
+  // Get discovery for a project
+  app.get('/api/indexer/projects/:id/discovery', { preHandler: [app.authenticate] }, async (request: FastifyRequest) => {
+    const { id } = request.params as { id: string };
+    const project = await pool.query('SELECT domain FROM indexer_projects WHERE id = $1', [id]);
+    const domain = project.rows[0]?.domain || '';
+
+    const backlinkCount = await pool.query(
+      'SELECT COUNT(*) as count FROM backlink_results WHERE project_id = $1 AND status IN ($2, $3)',
+      [id, 'submitted', 'verified']
+    );
+    const endpointCount = await pool.query('SELECT COUNT(*) as count FROM backlink_endpoints WHERE active = true');
+    const usedCount = await pool.query(
+      'SELECT COUNT(DISTINCT endpoint_id) as count FROM backlink_results WHERE project_id = $1',
+      [id]
+    );
+
+    const totalEndpoints = parseInt(endpointCount.rows[0].count);
+    const usedEndpoints = parseInt(usedCount.rows[0].count);
+    const availableEndpoints = totalEndpoints - usedEndpoints;
+
+    const suggestions = [];
+    if (availableEndpoints > 0) suggestions.push({ type: 'new_endpoints', message: `${availableEndpoints} new endpoints available for ${domain}`, priority: 'high' });
+    if (parseInt(backlinkCount.rows[0].count) < 50) suggestions.push({ type: 'low_backlinks', message: 'Build more backlinks to improve domain authority', priority: 'medium' });
+    suggestions.push({ type: 'recheck', message: 'Re-verify existing backlinks for freshness', priority: 'low' });
+
+    return {
+      projectId: id,
+      domain,
+      totalEndpoints,
+      usedEndpoints,
+      availableEndpoints,
+      totalBacklinks: parseInt(backlinkCount.rows[0].count),
+      suggestions,
+    };
+  });
+
+  // Get activity log for a project
+  app.get('/api/indexer/projects/:id/activity-log', { preHandler: [app.authenticate] }, async (request: FastifyRequest) => {
+    const { id } = request.params as { id: string };
+    const { limit } = request.query as { limit?: string };
+    const maxItems = Math.min(parseInt(limit || '50'), 200);
+
+    const result = await pool.query(
+      `SELECT id, project_id, action, details, created_at
+       FROM indexer_activity_log
+       WHERE project_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [id, maxItems]
+    );
+
+    return {
+      projectId: id,
+      total: result.rowCount,
+      activities: result.rows.map((r: { id: string; project_id: string; action: string; details: string; created_at: string }) => ({
+        id: r.id,
+        action: r.action,
+        details: typeof r.details === 'string' ? JSON.parse(r.details) : r.details,
+        createdAt: r.created_at,
+      })),
+    };
+  });
+
+  // Get discovery stats (global)
   app.get('/api/indexer/discovery/stats', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const stats = await getDiscoveryStats();
     return stats;
@@ -936,8 +1081,14 @@ export async function indexerRoutes(app: FastifyInstance) {
     return result;
   });
 
-  // 5. Health check
+  // 5. Health check (GET also supported so no body required)
   app.post('/api/indexer/projects/:id/backlinks/health-check', { preHandler: [app.authenticate] }, async (request: FastifyRequest) => {
+    const { id } = request.params as { id: string };
+    const result = await runHealthCheck(id);
+    return result;
+  });
+
+  app.get('/api/indexer/projects/:id/backlinks/health-check', { preHandler: [app.authenticate] }, async (request: FastifyRequest) => {
     const { id } = request.params as { id: string };
     const result = await runHealthCheck(id);
     return result;
