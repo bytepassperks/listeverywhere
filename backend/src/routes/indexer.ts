@@ -234,10 +234,11 @@ export async function indexerRoutes(app: FastifyInstance) {
   // Add URLs manually
   app.post('/api/indexer/projects/:id/urls', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
-    const { urls } = request.body as { urls: string[] };
+    const body = (request.body || {}) as { urls?: string[]; url?: string };
+    const urls = body.urls || (body.url ? [body.url] : []);
 
     if (!urls || urls.length === 0) {
-      return reply.status(400).send({ error: 'URLs array is required' });
+      return reply.status(400).send({ error: 'URLs array is required (pass "urls" array or single "url" string)' });
     }
 
     let added = 0;
@@ -406,20 +407,20 @@ export async function indexerRoutes(app: FastifyInstance) {
   // BACKLINK BUILDER
   // ==========================================
 
-  // Seed backlink endpoints
-  app.post('/api/indexer/backlinks/seed', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+  // Seed backlink endpoints (POST with optional body, or GET)
+  const seedHandler = async (request: FastifyRequest, reply: FastifyReply) => {
     if (request.userRole !== 'super_admin') {
       return reply.status(403).send({ error: 'Super admin only' });
     }
-
-    // Run in background — don't block HTTP request for 245K+ inserts
     seedBacklinkEndpoints().then(seeded => {
       console.log(`[Seed API] Mass seed complete: ${seeded.toLocaleString()} new endpoints`);
     }).catch(err => {
       console.error('[Seed API] Error:', err);
     });
-    return { message: 'Mass endpoint seeding started in background (245,000+ endpoints). Check /api/indexer/endpoints/stats for progress.' };
-  });
+    return { message: 'Mass endpoint seeding started in background (245,000+ endpoints). Check /api/indexer/endpoints/stats for progress.', seeded: 0 };
+  };
+  app.post('/api/indexer/backlinks/seed', { preHandler: [app.authenticate] }, seedHandler);
+  app.get('/api/indexer/backlinks/seed', { preHandler: [app.authenticate] }, seedHandler);
 
   // Get backlink endpoints
   app.get('/api/indexer/backlinks/endpoints', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
