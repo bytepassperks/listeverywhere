@@ -454,6 +454,16 @@ async function fulfillBacklinkBuilding(orderId: string, userId: string, domain: 
   } catch {
     steps.push('IndexNow submission skipped (no key configured)');
   }
+  await updateOrderStatus(orderId, 'processing', 65);
+
+  // Step 3b: Submit to Google Indexing API for fast crawling
+  try {
+    const { submitBacklinksToGoogleIndexing } = await import('./googleIndexingService');
+    const googleIndexResult = await submitBacklinksToGoogleIndexing(project.id, Math.min(maxLinks, 200));
+    steps.push(`Google Indexing API: ${googleIndexResult.submitted} submitted (${googleIndexResult.quotaRemaining} quota remaining)`);
+  } catch {
+    steps.push('Google Indexing API skipped (not configured)');
+  }
   await updateOrderStatus(orderId, 'processing', 70);
 
   // Step 4: Verify backlinks
@@ -507,6 +517,16 @@ async function fulfillAISearch(orderId: string, userId: string, domain: string, 
   const blResult = await buildBacklinks(project.id, targetUrl, domain, ['llm_indexing'], tier.limits.platforms || 5);
   steps.push(`Built ${blResult.submitted} AI-related backlinks`);
   await updateOrderStatus(orderId, 'processing', 80);
+
+  // Step 3b: Submit to Google Indexing API for fast crawling
+  try {
+    const { submitBacklinksToGoogleIndexing } = await import('./googleIndexingService');
+    const googleIndexResult = await submitBacklinksToGoogleIndexing(project.id, Math.min(tier.limits.platforms || 25, 200));
+    steps.push(`Google Indexing API: ${googleIndexResult.submitted} submitted`);
+  } catch {
+    steps.push('Google Indexing API skipped');
+  }
+  await updateOrderStatus(orderId, 'processing', 82);
 
   // Step 4: Run Google index verification on AI backlinks
   const { verifyGoogleIndex, getIndexStats } = await import('./indexVerificationService');
@@ -564,6 +584,16 @@ async function fulfillIndexVerification(orderId: string, userId: string, domain:
   } catch {
     steps.push('IndexNow re-submission skipped');
   }
+  await updateOrderStatus(orderId, 'processing', 70);
+
+  // Step 3b: Submit to Google Indexing API for fast crawling
+  try {
+    const { submitBacklinksToGoogleIndexing } = await import('./googleIndexingService');
+    const googleIndexResult = await submitBacklinksToGoogleIndexing(project.id, Math.min(maxLinks, 200));
+    steps.push(`Google Indexing API: ${googleIndexResult.submitted} submitted for fast indexing`);
+  } catch {
+    steps.push('Google Indexing API skipped');
+  }
   await updateOrderStatus(orderId, 'processing', 75);
 
   // Step 4: Generate health summary
@@ -620,6 +650,16 @@ async function fulfillDripFeed(orderId: string, userId: string, domain: string, 
   const firstBatch = await processCampaignBatch(campaignResult.campaignId, true);
   steps.push(`First batch: ${firstBatch.succeeded} succeeded, ${firstBatch.failed} failed`);
   await updateOrderStatus(orderId, 'processing', 50);
+
+  // Submit to Google Indexing API for fast crawling
+  try {
+    const { submitBacklinksToGoogleIndexing } = await import('./googleIndexingService');
+    const googleIndexResult = await submitBacklinksToGoogleIndexing(project.id, 200);
+    steps.push(`Google Indexing API: ${googleIndexResult.submitted} submitted`);
+  } catch {
+    steps.push('Google Indexing API skipped');
+  }
+  await updateOrderStatus(orderId, 'processing', 55);
 
   // Run Google index verification
   const { verifyGoogleIndex: verifyGI3, getIndexStats: getIS3 } = await import('./indexVerificationService');
@@ -695,6 +735,16 @@ async function fulfillMonthlySEO(orderId: string, userId: string, domain: string
   } catch {
     steps.push('IndexNow skipped');
   }
+  await updateOrderStatus(orderId, 'processing', 60);
+
+  // Step 3b: Google Indexing API for fast crawling
+  try {
+    const { submitBacklinksToGoogleIndexing } = await import('./googleIndexingService');
+    const googleIndexResult = await submitBacklinksToGoogleIndexing(project.id, Math.min(maxLinks, 200));
+    steps.push(`Google Indexing API: ${googleIndexResult.submitted} submitted`);
+  } catch {
+    steps.push('Google Indexing API skipped');
+  }
   await updateOrderStatus(orderId, 'processing', 65);
 
   // Step 4: Verify
@@ -754,7 +804,16 @@ async function fulfillToxicCleanup(orderId: string, userId: string, domain: stri
   const summary = await getHealthSummary(project.id);
   await updateOrderStatus(orderId, 'processing', 85);
 
-  // Step 5: Run real Google index verification
+  // Step 5: Submit to Google Indexing API for fast crawling
+  try {
+    const { submitBacklinksToGoogleIndexing } = await import('./googleIndexingService');
+    const googleIndexResult = await submitBacklinksToGoogleIndexing(project.id, 200);
+    steps.push(`Google Indexing API: ${googleIndexResult.submitted} submitted for fast re-indexing`);
+  } catch {
+    steps.push('Google Indexing API skipped');
+  }
+
+  // Step 5b: Run real Google index verification
   const { verifyGoogleIndex: verifyGI, getIndexStats: getIS } = await import('./indexVerificationService');
   const googleResult = await verifyGI(project.id, 20);
   steps.push(`Google index check: ${googleResult.indexed} indexed, ${googleResult.notIndexed} not indexed`);
@@ -795,6 +854,15 @@ async function fulfillLocalCitations(orderId: string, userId: string, domain: st
   const verifyResult = await verifyBacklinks(project.id, maxDirs);
   steps.push(`Verified: ${verifyResult.verified} live citations`);
   await updateOrderStatus(orderId, 'processing', 85);
+
+  // Step 3b: Submit to Google Indexing API for fast crawling
+  try {
+    const { submitBacklinksToGoogleIndexing } = await import('./googleIndexingService');
+    const googleIndexResult = await submitBacklinksToGoogleIndexing(project.id, Math.min(maxDirs, 200));
+    steps.push(`Google Indexing API: ${googleIndexResult.submitted} submitted`);
+  } catch {
+    steps.push('Google Indexing API skipped');
+  }
 
   // Step 4: Run real Google index verification
   const { verifyGoogleIndex: verifyGIdx, getIndexStats: getIStats } = await import('./indexVerificationService');
@@ -849,6 +917,16 @@ async function fulfillDAIncrease(orderId: string, userId: string, domain: string
     steps.push('IndexNow submissions completed');
   } catch {
     steps.push('IndexNow skipped');
+  }
+  await updateOrderStatus(orderId, 'processing', 60);
+
+  // Step 3b: Google Indexing API for fast crawling
+  try {
+    const { submitBacklinksToGoogleIndexing } = await import('./googleIndexingService');
+    const googleIndexResult = await submitBacklinksToGoogleIndexing(project.id, Math.min(maxLinks, 200));
+    steps.push(`Google Indexing API: ${googleIndexResult.submitted} submitted`);
+  } catch {
+    steps.push('Google Indexing API skipped');
   }
   await updateOrderStatus(orderId, 'processing', 65);
 

@@ -408,6 +408,10 @@ const backlinkEnhancementMigrations = [
   `CREATE INDEX IF NOT EXISTS idx_backlink_endpoints_indexable ON backlink_endpoints(indexable)`,
   `CREATE INDEX IF NOT EXISTS idx_backlink_results_indexable ON backlink_results(indexable)`,
   `CREATE INDEX IF NOT EXISTS idx_backlink_results_google_indexed ON backlink_results(google_indexed)`,
+  // v3: Google Indexing API tracking columns
+  `ALTER TABLE backlink_results ADD COLUMN IF NOT EXISTS google_indexing_submitted BOOLEAN DEFAULT false`,
+  `ALTER TABLE backlink_results ADD COLUMN IF NOT EXISTS google_indexing_submitted_at TIMESTAMP WITH TIME ZONE`,
+  `CREATE INDEX IF NOT EXISTS idx_backlink_results_google_indexing ON backlink_results(google_indexing_submitted)`,
 ];
 
 export async function runMigrations() {

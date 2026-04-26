@@ -16,4 +16,5 @@ export const env = {
   NODE_ENV: process.env.NODE_ENV || 'development',
   SCREENSHOTS_DIR: process.env.SCREENSHOTS_DIR || path.resolve(__dirname, '../../screenshots'),
   PROXY_POOL_URL: process.env.PROXY_POOL_URL || '',
+  GOOGLE_SERVICE_ACCOUNT_KEY: process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '',
 };

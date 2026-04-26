@@ -595,6 +595,41 @@ export async function indexerRoutes(app: FastifyInstance) {
   });
 
   // ==========================================
+  // GOOGLE INDEXING API (fast indexing via official Google API)
+  // ==========================================
+
+  // Submit backlink URLs to Google Indexing API for fast crawling
+  app.post('/api/indexer/projects/:id/backlinks/submit-google-indexing', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const { limit } = request.body as { limit?: number };
+
+    const project = await pool.query('SELECT domain FROM indexer_projects WHERE id = $1', [id]);
+    if (project.rows.length === 0) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    const { submitBacklinksToGoogleIndexing } = await import('../services/googleIndexingService');
+    const result = await submitBacklinksToGoogleIndexing(id, limit || 200);
+    return {
+      message: `Google Indexing API: ${result.submitted} URLs submitted for fast indexing`,
+      ...result,
+    };
+  });
+
+  // Check Google Indexing API status and quota
+  app.get('/api/indexer/google-indexing/status', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { checkGoogleIndexingStatus } = await import('../services/googleIndexingService');
+    return await checkGoogleIndexingStatus();
+  });
+
+  // Get Google Indexing API stats for a project
+  app.get('/api/indexer/projects/:id/google-indexing/stats', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const { getGoogleIndexingStats } = await import('../services/googleIndexingService');
+    return await getGoogleIndexingStats(id);
+  });
+
+  // ==========================================
   // SEO TOOLS (public, no auth required for basic tools)
   // ==========================================
 
