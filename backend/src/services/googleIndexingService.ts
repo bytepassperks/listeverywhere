@@ -254,43 +254,40 @@ export async function submitBacklinksToGoogleIndexing(
   
   const domain = projectResult.rows[0].domain;
   
-  // Build target domain URLs to submit for recrawling
-  // These are the user's own pages that backlinks point to
+  // Build target domain URLs to submit for recrawling.
+  // Only submit URLs on the exact verified domain (no www. prefix since
+  // Search Console verification is for the exact URL prefix property).
   const targetUrls: string[] = [];
   
-  // 1. Main domain pages
+  // 1. Main domain URL (the canonical form verified in Search Console)
   targetUrls.push(`https://${domain}`);
   targetUrls.push(`https://${domain}/`);
-  targetUrls.push(`https://www.${domain}`);
-  targetUrls.push(`https://www.${domain}/`);
   
-  // 2. Get unique target URLs from backlink results (the pages backlinks point to)
+  // 2. Common site pages that benefit from fast indexing
+  const commonPaths = ['/blog', '/about', '/services', '/contact', '/pricing', '/features'];
+  for (const path of commonPaths) {
+    targetUrls.push(`https://${domain}${path}`);
+  }
+  
+  // 3. Get unique target URLs from backlink results that are on the user's domain
   const targetPagesResult = await pool.query(
     `SELECT DISTINCT target_url FROM backlink_results
      WHERE project_id = $1
        AND target_url IS NOT NULL
        AND target_url LIKE $2
-       AND COALESCE(google_indexing_submitted, false) = false
      LIMIT $3`,
-    [projectId, `%${domain}%`, Math.max(limit - 4, 10)]
+    [projectId, `https://${domain}%`, Math.max(limit - targetUrls.length, 10)]
   );
   
   for (const row of targetPagesResult.rows) {
     const url = (row as { target_url: string }).target_url;
-    if (url && !targetUrls.includes(url)) {
+    // Only include URLs that are exactly on our verified domain (not www. or other subdomains)
+    if (url && url.startsWith(`https://${domain}`) && !targetUrls.includes(url)) {
       targetUrls.push(url);
     }
   }
   
-  // 3. Try common site pages that benefit from fast indexing
-  const commonPaths = ['/sitemap.xml', '/blog', '/about', '/services', '/contact'];
-  for (const path of commonPaths) {
-    if (targetUrls.length < limit) {
-      targetUrls.push(`https://${domain}${path}`);
-    }
-  }
-  
-  // Deduplicate
+  // Deduplicate and limit
   const uniqueUrls = [...new Set(targetUrls)].slice(0, limit);
   
   const alreadySubmittedResult = await pool.query(
