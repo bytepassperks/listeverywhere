@@ -918,10 +918,12 @@ export async function indexerRoutes(app: FastifyInstance) {
   // 3. Generate anchor texts
   app.post('/api/indexer/projects/:id/anchor-texts', { preHandler: [app.authenticate] }, async (request: FastifyRequest) => {
     const { id } = request.params as { id: string };
-    const { domain, companyName, description, keywords } = request.body as {
-      domain: string; companyName: string; description: string; keywords: string[];
+    const { domain, companyName, description, keywords } = (request.body || {}) as {
+      domain?: string; companyName?: string; description?: string; keywords?: string[];
     };
-    const anchors = await generateAnchorTexts(id, domain, companyName, description, keywords || []);
+    const project = await pool.query('SELECT domain FROM indexer_projects WHERE id = $1', [id]);
+    const projectDomain = project.rows[0]?.domain || domain || '';
+    const anchors = await generateAnchorTexts(id, projectDomain, companyName || projectDomain, description || '', keywords || []);
     return { anchors };
   });
 
