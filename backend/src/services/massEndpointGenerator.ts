@@ -296,65 +296,43 @@ export function generateMassEndpoints(): EndpointEntry[] {
   add('Jasmine Directory', 'https://www.jasminedirectory.com/search?q={DOMAIN}', 'directory_listing', 3, true, 58);
 
   // =============================================
-  // LOCAL BUSINESS DIRECTORIES — Real local citation sources
-  // These are the directories where businesses list NAP (Name, Address, Phone)
-  // and where local SEO citations actually matter for rankings
+  // LOCAL CITATIONS — Persistent profile/review pages ONLY
+  // Every URL below creates a unique persistent page per domain
+  // NO search result pages — these are all real indexable pages
   // =============================================
 
-  // --- Major Local Business Directories (Tier 1 — high DA, real citations) ---
-  add('Yelp', 'https://www.yelp.com/search?find_desc={DOMAIN}', 'local_citation', 1, true, 93);
-  add('Yellow Pages', 'https://www.yellowpages.com/search?search_terms={DOMAIN}', 'local_citation', 1, true, 87);
-  add('BBB', 'https://www.bbb.org/search?find_text={DOMAIN}', 'local_citation', 1, true, 91);
-  add('Foursquare', 'https://foursquare.com/explore?q={DOMAIN}', 'local_citation', 1, true, 91);
-  add('MapQuest', 'https://www.mapquest.com/search/results?query={DOMAIN}', 'local_citation', 1, true, 84);
-  add('Apple Maps Connect', 'https://mapsconnect.apple.com/search?q={DOMAIN}', 'local_citation', 1, true, 100);
-  add('Bing Places', 'https://www.bing.com/maps?q={DOMAIN}', 'local_citation', 1, true, 96);
-  add('Facebook Search', 'https://www.facebook.com/search/pages/?q={DOMAIN}', 'local_citation', 1, true, 96);
-  add('LinkedIn Search', 'https://www.linkedin.com/search/results/companies/?keywords={DOMAIN}', 'local_citation', 1, true, 98);
+  // --- Review/Trust Platforms (persistent review page per domain) ---
+  add('TrustPilot Review', 'https://www.trustpilot.com/review/{DOMAIN}', 'local_citation', 1, true, 93);
+  add('Sitejabber Review', 'https://www.sitejabber.com/reviews/{DOMAIN}', 'local_citation', 1, true, 72);
+  add('ScamAdviser Check', 'https://www.scamadviser.com/check-website/{DOMAIN}', 'local_citation', 1, true, 72);
 
-  // --- Business Directory Aggregators (Tier 1-2 — important for local SEO) ---
-  add('Manta', 'https://www.manta.com/search?search_source=nav&search={DOMAIN}', 'local_citation', 1, true, 72);
-  add('Superpages', 'https://www.superpages.com/search?search_terms={DOMAIN}', 'local_citation', 1, true, 74);
-  add('DexKnows', 'https://www.dexknows.com/search?search_terms={DOMAIN}', 'local_citation', 1, true, 62);
-  add('CitySearch', 'https://www.citysearch.com/search?what={DOMAIN}', 'local_citation', 2, true, 64);
-  add('MerchantCircle', 'https://www.merchantcircle.com/search?q={DOMAIN}', 'local_citation', 2, true, 56);
-  add('Brownbook', 'https://www.brownbook.net/businesses/{DOMAIN}/', 'local_citation', 2, true, 56);
-  add('EZLocal', 'https://ezlocal.com/search?q={DOMAIN}', 'local_citation', 2, true, 47);
-  add('2FindLocal', 'https://www.2findlocal.com/search/{DOMAIN}', 'local_citation', 2, true, 38);
-  add('LocalStack', 'https://localstack.com/search?q={DOMAIN}', 'local_citation', 2, true, 32);
-  add('ShowMeLocal', 'https://www.showmelocal.com/search?q={DOMAIN}', 'local_citation', 2, true, 42);
+  // --- Domain Profile/Valuation Sites (persistent stats page per domain) ---
+  add('StatsCrop Profile', 'https://www.statscrop.com/www/{DOMAIN}', 'local_citation', 1, true, 52);
+  add('WorthOfWeb Value', 'https://www.worthofweb.com/website-value/{DOMAIN}/', 'local_citation', 1, true, 54);
+  add('SiteWorthTraffic', 'https://www.siteworthtraffic.com/report/{DOMAIN}', 'local_citation', 1, true, 48);
+  add('Host.io Profile', 'https://host.io/{DOMAIN}', 'local_citation', 1, true, 58);
+  add('HypeStat Profile', 'https://hypestat.com/info/{DOMAIN}', 'local_citation', 2, true, 56);
+  add('CuteStat Profile', 'https://www.cutestat.com/{DOMAIN}', 'local_citation', 2, true, 52);
+  add('DomainBigData', 'https://domainbigdata.com/{DOMAIN}', 'local_citation', 2, true, 50);
+  add('SitePrice Value', 'https://www.siteprice.org/website-worth/{DOMAIN}', 'local_citation', 2, true, 46);
+  add('IsItDown Status', 'https://www.isitdownrightnow.com/{DOMAIN}.html', 'local_citation', 2, true, 62);
 
-  // --- Industry / Niche Directories ---
-  add('Angi', 'https://www.angi.com/companylist/{DOMAIN}', 'local_citation', 2, true, 82);
-  add('Thumbtack', 'https://www.thumbtack.com/search?search_term={DOMAIN}', 'local_citation', 2, true, 76);
-  add('Bark', 'https://www.bark.com/en/us/search/?q={DOMAIN}', 'local_citation', 2, true, 62);
-  add('Clutch.co', 'https://clutch.co/profile?query={DOMAIN}', 'local_citation', 2, true, 72);
-  add('GoodFirms', 'https://www.goodfirms.co/search?query={DOMAIN}', 'local_citation', 2, true, 58);
-  add('Expertise', 'https://www.expertise.com/search?q={DOMAIN}', 'local_citation', 2, true, 66);
+  // --- SEO Audit/Report Sites (persistent audit page per domain) ---
+  add('SEOptimer Audit', 'https://www.seoptimer.com/{DOMAIN}', 'local_citation', 1, true, 68);
+  add('Nibbler Report', 'https://nibbler.insites.com/en/reports/{DOMAIN}', 'local_citation', 2, true, 56);
+  add('WooRank Teaser', 'https://www.woorank.com/en/teaser/{DOMAIN}', 'local_citation', 2, true, 72);
 
-  // --- Review/Rating Platforms (local citation value) ---
-  add('TrustPilot', 'https://www.trustpilot.com/review/{DOMAIN}', 'local_citation', 1, true, 93);
-  add('Glassdoor', 'https://www.glassdoor.com/Search/results.htm?keyword={DOMAIN}', 'local_citation', 2, true, 90);
-  add('Sitejabber', 'https://www.sitejabber.com/reviews/{DOMAIN}', 'local_citation', 2, true, 72);
-  add('TripAdvisor', 'https://www.tripadvisor.com/Search?q={DOMAIN}', 'local_citation', 1, true, 93);
-  add('ConsumerAffairs', 'https://www.consumeraffairs.com/search?query={DOMAIN}', 'local_citation', 2, true, 72);
+  // --- Security/Trust Report Sites (persistent report per domain) ---
+  add('Netcraft SiteReport', 'https://sitereport.netcraft.com/?url=https%3A%2F%2F{DOMAIN}', 'local_citation', 1, true, 78);
+  add('SecurityTrails Domain', 'https://securitytrails.com/domain/{DOMAIN}', 'local_citation', 2, true, 72);
+  add('Cloudflare Radar', 'https://radar.cloudflare.com/domains/domain/{DOMAIN}', 'local_citation', 2, true, 92);
 
-  // --- Local/Regional Directories ---
-  add('Chamber of Commerce', 'https://www.chamberofcommerce.com/search?q={DOMAIN}', 'local_citation', 2, true, 62);
-  add('Local.com', 'https://www.local.com/search?q={DOMAIN}', 'local_citation', 2, true, 58);
-  add('ChamberOfCommerce.com', 'https://www.chamberofcommerce.com/search-results?q={DOMAIN}', 'local_citation', 2, true, 62);
-  add('Cylex', 'https://www.cylex.us.com/search/{DOMAIN}', 'local_citation', 2, true, 52);
-  add('N49', 'https://www.n49.com/search/?q={DOMAIN}', 'local_citation', 2, true, 44);
-  add('Tuugo', 'https://www.tuugo.us/search/{DOMAIN}', 'local_citation', 2, true, 40);
-  add('Fyple', 'https://www.fyple.com/search?q={DOMAIN}', 'local_citation', 2, true, 36);
-  add('Opendi', 'https://www.opendi.us/search?q={DOMAIN}', 'local_citation', 2, true, 38);
-  add('Yalwa', 'https://www.yalwa.com/search?q={DOMAIN}', 'local_citation', 2, true, 42);
-  add('iBegin', 'https://www.ibegin.com/search/?q={DOMAIN}', 'local_citation', 2, true, 34);
+  // --- Speed/Performance Report Sites (persistent report per domain) ---
+  add('GTmetrix Report', 'https://gtmetrix.com/?url=https%3A%2F%2F{DOMAIN}', 'local_citation', 2, true, 72);
 
-  // --- Data Aggregators (feed citations to many directories) ---
-  add('Factual/Foursquare Data', 'https://foursquare.com/explore?q={DOMAIN}&mode=url', 'local_citation', 1, true, 91);
-  add('Neustar Localeze', 'https://www.neustarlocaleze.biz/search?q={DOMAIN}', 'local_citation', 2, true, 52);
-  add('Infogroup', 'https://www.infogroup.com/search?q={DOMAIN}', 'local_citation', 2, true, 58);
+  // --- Business Profile / Directory Listings (persistent page per domain) ---
+  add('Brownbook Business', 'https://www.brownbook.net/businesses/{DOMAIN}/', 'local_citation', 2, true, 56);
+  add('DNSlytics Domain', 'https://dnslytics.com/domain/{DOMAIN}', 'local_citation', 2, true, 58);
 
   console.log(`[EndpointDB v2] Total real indexable endpoints: ${endpoints.length} (${endpoints.filter(e => e.indexable).length} indexable)`);
   return endpoints;

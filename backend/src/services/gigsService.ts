@@ -864,17 +864,23 @@ async function fulfillLocalCitations(orderId: string, userId: string, domain: st
 
   const maxDirs = tier.limits.maxDirectories || 20;
 
-  // Step 1: Build local citation backlinks (real business directories)
+  // Step 1: Build persistent citation pages (review sites, domain profiles, trust reports)
   const { buildBacklinks } = await import('./backlinkBuilder');
-  const categories = ['local_citation', 'directory_listing'];
-  const result = await buildBacklinks(project.id, targetUrl, domain, categories, maxDirs);
-  steps.push(`Submitted to ${result.submitted} local directories`);
-  await updateOrderStatus(orderId, 'processing', 50);
+  const citationCategories = ['local_citation'];
+  const result = await buildBacklinks(project.id, targetUrl, domain, citationCategories, maxDirs);
+  steps.push(`Created ${result.submitted} persistent citation pages (review sites, domain profiles, trust reports)`);
+  await updateOrderStatus(orderId, 'processing', 40);
 
-  // Step 2: Build additional citation signals (profile pages, social profiles for NAP consistency)
-  const generalCategories = ['social_profile', 'profile_page'];
-  const generalResult = await buildBacklinks(project.id, targetUrl, domain, generalCategories, Math.floor(maxDirs / 2));
-  steps.push(`Built ${generalResult.submitted} citation signals`);
+  // Step 2: Build additional persistent profiles (WHOIS, tech profiles, SEO reports)
+  const profileCategories = ['whois_page', 'tech_profile', 'seo_report', 'profile_page'];
+  const profileResult = await buildBacklinks(project.id, targetUrl, domain, profileCategories, Math.floor(maxDirs / 2));
+  steps.push(`Created ${profileResult.submitted} domain profile pages (WHOIS, tech, SEO audit)`);
+  await updateOrderStatus(orderId, 'processing', 60);
+
+  // Step 3: Build directory listing citations
+  const dirCategories = ['directory_listing'];
+  const dirResult = await buildBacklinks(project.id, targetUrl, domain, dirCategories, Math.floor(maxDirs / 4));
+  steps.push(`Submitted to ${dirResult.submitted} web directories`);
   await updateOrderStatus(orderId, 'processing', 70);
 
   // Step 3: Verify
@@ -902,10 +908,9 @@ async function fulfillLocalCitations(orderId: string, userId: string, domain: st
   const { getBacklinkStats } = await import('./backlinkBuilder');
   const dbStats = await getBacklinkStats(project.id);
   const indexStats = await getIStats(project.id);
-  const dirCount = Math.max(result.submitted, Math.floor(dbStats.total * 0.6));
-  const citationCount = Math.max(generalResult.submitted, dbStats.total - dirCount);
+  const totalCitations = result.submitted + profileResult.submitted + dirResult.submitted;
   const actualVerified = Math.max(verifyResult.verified, dbStats.verified);
-  const report = generateCitationsReport(domain, tier, { submitted: dirCount, errors: result.errors }, { submitted: citationCount, errors: generalResult.errors }, { verified: actualVerified, dead: verifyResult.dead }, indexStats);
+  const report = generateCitationsReport(domain, tier, { submitted: totalCitations, errors: result.errors }, { submitted: profileResult.submitted, errors: profileResult.errors }, { verified: actualVerified, dead: verifyResult.dead }, indexStats);
   await addDeliverable(orderId, 'report', `Local Citations Report - ${domain}`, report, 'html');
   const csv = await generateBacklinkCSV(project.id);
   await addDeliverable(orderId, 'csv', `Citations - ${domain}.csv`, csv, 'csv');
