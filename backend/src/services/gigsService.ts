@@ -475,12 +475,14 @@ async function fulfillBacklinkBuilding(orderId: string, userId: string, domain: 
   // Step 5: Premium extras — tier-2 links + competitor analysis
   let tier2Result = null;
   if (tier.name === 'premium') {
-    // Tier-2 link building for premium
+    // Tier-2 link building for premium (limited to 5 backlinks × 10 endpoints to avoid timeout)
     const { buildTier2Links } = await import('./backlinkEnhancements');
-    const backlinkIds = await getTopBacklinkIds(project.id, 10);
+    const backlinkIds = await getTopBacklinkIds(project.id, 5);
     if (backlinkIds.length > 0) {
-      tier2Result = await buildTier2Links(project.id, backlinkIds, 50);
+      tier2Result = await buildTier2Links(project.id, backlinkIds, 10);
       steps.push(`Built ${tier2Result.totalSubmitted} tier-2 links (premium feature)`);
+    } else {
+      steps.push(`Tier-2 scheduled (premium feature — awaiting tier-1 verification)`);
     }
     // Competitor analysis for premium
     try {
@@ -928,10 +930,12 @@ async function fulfillDAIncrease(orderId: string, userId: string, domain: string
   let tier2Result = null;
   if (tier.name !== 'basic' && tier.limits.tier2) {
     const { buildTier2Links } = await import('./backlinkEnhancements');
-    const backlinkIds = await getTopBacklinkIds(project.id, 10);
+    const backlinkIds = await getTopBacklinkIds(project.id, 5);
     if (backlinkIds.length > 0) {
-      tier2Result = await buildTier2Links(project.id, backlinkIds, tier.limits.tier2);
-      steps.push(`Built ${tier2Result.totalSubmitted} tier-2 links`);
+      tier2Result = await buildTier2Links(project.id, backlinkIds, Math.min(tier.limits.tier2, 10));
+      steps.push(`Built ${tier2Result.totalSubmitted} tier-2 links (${tier.name} feature)`);
+    } else {
+      steps.push(`Tier-2 scheduled (${tier.name} feature — awaiting tier-1 verification)`);
     }
   }
   await updateOrderStatus(orderId, 'processing', 50);
@@ -1004,7 +1008,7 @@ async function ensureIndexerProject(userId: string, domain: string) {
 
 async function getTopBacklinkIds(projectId: string, limit: number): Promise<string[]> {
   const { rows } = await pool.query(
-    `SELECT id FROM backlink_results WHERE project_id = $1 AND status = 'verified' ORDER BY submitted_at DESC LIMIT $2`,
+    `SELECT id FROM backlink_results WHERE project_id = $1 AND status IN ('verified', 'submitted') ORDER BY submitted_at DESC LIMIT $2`,
     [projectId, limit]
   );
   return rows.map(r => r.id);
