@@ -295,6 +295,67 @@ export function generateMassEndpoints(): EndpointEntry[] {
   add('BOTW', 'https://botw.org/search?q={DOMAIN}', 'directory_listing', 3, true, 50);
   add('Jasmine Directory', 'https://www.jasminedirectory.com/search?q={DOMAIN}', 'directory_listing', 3, true, 58);
 
+  // =============================================
+  // LOCAL BUSINESS DIRECTORIES — Real local citation sources
+  // These are the directories where businesses list NAP (Name, Address, Phone)
+  // and where local SEO citations actually matter for rankings
+  // =============================================
+
+  // --- Major Local Business Directories (Tier 1 — high DA, real citations) ---
+  add('Yelp', 'https://www.yelp.com/search?find_desc={DOMAIN}', 'local_citation', 1, true, 93);
+  add('Yellow Pages', 'https://www.yellowpages.com/search?search_terms={DOMAIN}', 'local_citation', 1, true, 87);
+  add('BBB', 'https://www.bbb.org/search?find_text={DOMAIN}', 'local_citation', 1, true, 91);
+  add('Foursquare', 'https://foursquare.com/explore?q={DOMAIN}', 'local_citation', 1, true, 91);
+  add('MapQuest', 'https://www.mapquest.com/search/results?query={DOMAIN}', 'local_citation', 1, true, 84);
+  add('Apple Maps Connect', 'https://mapsconnect.apple.com/search?q={DOMAIN}', 'local_citation', 1, true, 100);
+  add('Bing Places', 'https://www.bing.com/maps?q={DOMAIN}', 'local_citation', 1, true, 96);
+  add('Facebook Search', 'https://www.facebook.com/search/pages/?q={DOMAIN}', 'local_citation', 1, true, 96);
+  add('LinkedIn Search', 'https://www.linkedin.com/search/results/companies/?keywords={DOMAIN}', 'local_citation', 1, true, 98);
+
+  // --- Business Directory Aggregators (Tier 1-2 — important for local SEO) ---
+  add('Manta', 'https://www.manta.com/search?search_source=nav&search={DOMAIN}', 'local_citation', 1, true, 72);
+  add('Superpages', 'https://www.superpages.com/search?search_terms={DOMAIN}', 'local_citation', 1, true, 74);
+  add('DexKnows', 'https://www.dexknows.com/search?search_terms={DOMAIN}', 'local_citation', 1, true, 62);
+  add('CitySearch', 'https://www.citysearch.com/search?what={DOMAIN}', 'local_citation', 2, true, 64);
+  add('MerchantCircle', 'https://www.merchantcircle.com/search?q={DOMAIN}', 'local_citation', 2, true, 56);
+  add('Brownbook', 'https://www.brownbook.net/businesses/{DOMAIN}/', 'local_citation', 2, true, 56);
+  add('EZLocal', 'https://ezlocal.com/search?q={DOMAIN}', 'local_citation', 2, true, 47);
+  add('2FindLocal', 'https://www.2findlocal.com/search/{DOMAIN}', 'local_citation', 2, true, 38);
+  add('LocalStack', 'https://localstack.com/search?q={DOMAIN}', 'local_citation', 2, true, 32);
+  add('ShowMeLocal', 'https://www.showmelocal.com/search?q={DOMAIN}', 'local_citation', 2, true, 42);
+
+  // --- Industry / Niche Directories ---
+  add('Angi', 'https://www.angi.com/companylist/{DOMAIN}', 'local_citation', 2, true, 82);
+  add('Thumbtack', 'https://www.thumbtack.com/search?search_term={DOMAIN}', 'local_citation', 2, true, 76);
+  add('Bark', 'https://www.bark.com/en/us/search/?q={DOMAIN}', 'local_citation', 2, true, 62);
+  add('Clutch.co', 'https://clutch.co/profile?query={DOMAIN}', 'local_citation', 2, true, 72);
+  add('GoodFirms', 'https://www.goodfirms.co/search?query={DOMAIN}', 'local_citation', 2, true, 58);
+  add('Expertise', 'https://www.expertise.com/search?q={DOMAIN}', 'local_citation', 2, true, 66);
+
+  // --- Review/Rating Platforms (local citation value) ---
+  add('TrustPilot', 'https://www.trustpilot.com/review/{DOMAIN}', 'local_citation', 1, true, 93);
+  add('Glassdoor', 'https://www.glassdoor.com/Search/results.htm?keyword={DOMAIN}', 'local_citation', 2, true, 90);
+  add('Sitejabber', 'https://www.sitejabber.com/reviews/{DOMAIN}', 'local_citation', 2, true, 72);
+  add('TripAdvisor', 'https://www.tripadvisor.com/Search?q={DOMAIN}', 'local_citation', 1, true, 93);
+  add('ConsumerAffairs', 'https://www.consumeraffairs.com/search?query={DOMAIN}', 'local_citation', 2, true, 72);
+
+  // --- Local/Regional Directories ---
+  add('Chamber of Commerce', 'https://www.chamberofcommerce.com/search?q={DOMAIN}', 'local_citation', 2, true, 62);
+  add('Local.com', 'https://www.local.com/search?q={DOMAIN}', 'local_citation', 2, true, 58);
+  add('ChamberOfCommerce.com', 'https://www.chamberofcommerce.com/search-results?q={DOMAIN}', 'local_citation', 2, true, 62);
+  add('Cylex', 'https://www.cylex.us.com/search/{DOMAIN}', 'local_citation', 2, true, 52);
+  add('N49', 'https://www.n49.com/search/?q={DOMAIN}', 'local_citation', 2, true, 44);
+  add('Tuugo', 'https://www.tuugo.us/search/{DOMAIN}', 'local_citation', 2, true, 40);
+  add('Fyple', 'https://www.fyple.com/search?q={DOMAIN}', 'local_citation', 2, true, 36);
+  add('Opendi', 'https://www.opendi.us/search?q={DOMAIN}', 'local_citation', 2, true, 38);
+  add('Yalwa', 'https://www.yalwa.com/search?q={DOMAIN}', 'local_citation', 2, true, 42);
+  add('iBegin', 'https://www.ibegin.com/search/?q={DOMAIN}', 'local_citation', 2, true, 34);
+
+  // --- Data Aggregators (feed citations to many directories) ---
+  add('Factual/Foursquare Data', 'https://foursquare.com/explore?q={DOMAIN}&mode=url', 'local_citation', 1, true, 91);
+  add('Neustar Localeze', 'https://www.neustarlocaleze.biz/search?q={DOMAIN}', 'local_citation', 2, true, 52);
+  add('Infogroup', 'https://www.infogroup.com/search?q={DOMAIN}', 'local_citation', 2, true, 58);
+
   console.log(`[EndpointDB v2] Total real indexable endpoints: ${endpoints.length} (${endpoints.filter(e => e.indexable).length} indexable)`);
   return endpoints;
 }

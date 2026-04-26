@@ -864,15 +864,15 @@ async function fulfillLocalCitations(orderId: string, userId: string, domain: st
 
   const maxDirs = tier.limits.maxDirectories || 20;
 
-  // Step 1: Build directory/social profile backlinks
+  // Step 1: Build local citation backlinks (real business directories)
   const { buildBacklinks } = await import('./backlinkBuilder');
-  const categories = ['directory_listing', 'social_profile'];
+  const categories = ['local_citation', 'directory_listing'];
   const result = await buildBacklinks(project.id, targetUrl, domain, categories, maxDirs);
-  steps.push(`Submitted to ${result.submitted} directories`);
+  steps.push(`Submitted to ${result.submitted} local directories`);
   await updateOrderStatus(orderId, 'processing', 50);
 
-  // Step 2: Build general backlinks for citation signals (profile pages, whois, tech profiles)
-  const generalCategories = ['profile_page', 'whois_page', 'tech_profile'];
+  // Step 2: Build additional citation signals (profile pages, social profiles for NAP consistency)
+  const generalCategories = ['social_profile', 'profile_page'];
   const generalResult = await buildBacklinks(project.id, targetUrl, domain, generalCategories, Math.floor(maxDirs / 2));
   steps.push(`Built ${generalResult.submitted} citation signals`);
   await updateOrderStatus(orderId, 'processing', 70);
