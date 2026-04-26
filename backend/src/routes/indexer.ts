@@ -1019,6 +1019,63 @@ export async function indexerRoutes(app: FastifyInstance) {
     return result;
   });
 
+  // Rebuild backlinks: clear old search-query URLs and rebuild with real persistent endpoints
+  app.post('/api/indexer/projects/:id/backlinks/rebuild', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    if (request.userRole !== 'super_admin') {
+      return reply.status(403).send({ error: 'Super admin access required' });
+    }
+    const { id } = request.params as { id: string };
+    const { maxLinks } = (request.body || {}) as { maxLinks?: number };
+
+    // Get project domain
+    const project = await pool.query('SELECT domain FROM indexer_projects WHERE id = $1', [id]);
+    if (project.rows.length === 0) return reply.status(404).send({ error: 'Project not found' });
+    const domain = project.rows[0].domain;
+
+    // Step 1: Count old search-query backlinks
+    const oldCount = await pool.query(
+      `SELECT COUNT(*) as count FROM backlink_results WHERE project_id = $1`, [id]
+    );
+    const totalOld = parseInt(oldCount.rows[0].count);
+
+    // Step 2: Delete old backlink_results for this project (allows fresh rebuild)
+    const deleted = await pool.query(
+      `DELETE FROM backlink_results WHERE project_id = $1 RETURNING id`, [id]
+    );
+    const deletedCount = deleted.rowCount || 0;
+
+    // Step 3: Re-seed endpoints with latest v2 persistent endpoints
+    const { seedBacklinkEndpoints } = await import('../services/backlinkBuilder');
+    const seeded = await seedBacklinkEndpoints();
+
+    // Step 4: Build new backlinks using real persistent endpoints
+    const { buildBacklinks } = await import('../services/backlinkBuilder');
+    const result = await buildBacklinks(id, `https://${domain}`, domain, undefined, maxLinks || 165);
+
+    // Step 5: Log the rebuild
+    await pool.query(
+      `INSERT INTO indexer_activity_log (project_id, action, details)
+       VALUES ($1, 'backlinks_rebuild', $2)`,
+      [id, JSON.stringify({
+        oldBacklinksDeleted: deletedCount,
+        endpointsSeeded: seeded,
+        newBacklinksBuilt: result.submitted,
+        indexableBuilt: result.indexableSubmitted,
+        errors: result.errors.length,
+      })]
+    );
+
+    return {
+      message: `Rebuilt backlinks for ${domain}`,
+      oldBacklinksDeleted: deletedCount,
+      endpointsSeeded: seeded,
+      newBacklinksBuilt: result.submitted,
+      indexableBuilt: result.indexableSubmitted,
+      totalAvailable: result.totalAvailable,
+      errors: result.errors.slice(0, 10),
+    };
+  });
+
   // Kill zombie DB connections blocking backlink tables (super admin only)
   app.post('/api/indexer/admin/kill-zombies', { preHandler: [app.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
     if (request.userRole !== 'super_admin') {
